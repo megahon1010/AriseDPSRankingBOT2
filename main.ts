@@ -5,7 +5,9 @@ import {
   Intents,
   InteractionResponseTypes,
   startBot,
+  InteractionTypes, // InteractionTypesをインポート
 } from "https://deno.land/x/discordeno@18.0.1/mod.ts";
+
 
 const kv = await Deno.openKv();
 
@@ -94,7 +96,8 @@ bot.events.guildCreate = async (guild) => {
 
 // スラッシュコマンドの処理
 bot.events.interactionCreate = async (interaction) => {
-  if (!interaction.isApplicationCommand()) return;
+  // ここを修正
+  if (interaction.type !== InteractionTypes.ApplicationCommand) return;
 
   const command = interaction.data?.name;
   const subcommand = interaction.data?.options?.[0]?.name;
@@ -315,4 +318,5 @@ try {
 Deno.cron("Continuous Request", "*/2 * * * *", () => {
     console.log("running...");
 });
+
 
