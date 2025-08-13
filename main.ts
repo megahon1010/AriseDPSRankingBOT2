@@ -21,9 +21,17 @@ const units: Record<string, bigint> = {
   "Ud": 10n ** 36n,
 };
 
+// 環境変数を取得し、未設定の場合は空文字をデフォルトにする
+const DISCORD_TOKEN = Deno.env.get("DISCORD_TOKEN") || "";
+const GUILD_ID = Deno.env.get("GUILD_ID") || "";
+const ROLE_ID_TOP1 = Deno.env.get("ROLE_ID_TOP1") || "";
+const ROLE_ID_TOP2 = Deno.env.get("ROLE_ID_TOP2") || "";
+const ROLE_ID_TOP3 = Deno.env.get("ROLE_ID_TOP3") || "";
+const ROLE_ID_TOP10 = Deno.env.get("ROLE_ID_TOP10") || "";
+
 // Discord Botクライアントの作成
 const bot: Bot = createBot({
-  token: Deno.env.get("DISCORD_TOKEN")!,
+  token: DISCORD_TOKEN,
   intents: Intents.Guilds,
   events: {
     ready() {
@@ -32,8 +40,12 @@ const bot: Bot = createBot({
   },
 });
 
-// スラッシュコマンドの定義
+// スラッシュコマンドの定義と登録
 bot.events.guildCreate = async (guild) => {
+  if (guild.id.toString() !== GUILD_ID) {
+    return;
+  }
+  
   const commands = [
     {
       name: "dps",
@@ -72,7 +84,12 @@ bot.events.guildCreate = async (guild) => {
     },
   ];
 
-  await bot.helpers.upsertGuildApplicationCommands(guild.id, commands);
+  try {
+    await bot.helpers.upsertGuildApplicationCommands(guild.id, commands);
+    console.log(`Successfully registered commands for guild ${GUILD_ID}`);
+  } catch (error) {
+    console.error(`Failed to register commands:`, error);
+  }
 };
 
 // スラッシュコマンドの処理
@@ -100,9 +117,8 @@ async function handleDpsRegister(interaction: any) {
   const user = interaction.user;
   const guildId = interaction.guildId!;
 
-  // 入力値のバリデーションを強化
   if (!/^\d+$/.test(valueStr)) {
-    await bot.helpers.sendInteractionResponse(
+    return bot.helpers.sendInteractionResponse(
       interaction.id,
       interaction.token,
       {
@@ -113,7 +129,6 @@ async function handleDpsRegister(interaction: any) {
         },
       }
     );
-    return;
   }
 
   try {
@@ -127,7 +142,6 @@ async function handleDpsRegister(interaction: any) {
       dps: dpsValue,
     };
 
-    // Deno.Kvにデータを保存
     await kv.set(["dps", guildId, user.id], dpsEntry);
 
     await bot.helpers.sendInteractionResponse(
@@ -142,7 +156,6 @@ async function handleDpsRegister(interaction: any) {
       }
     );
     
-    // ランキング更新とロール付与を実行
     await updateRoles(guildId);
 
   } catch (error) {
@@ -175,24 +188,22 @@ async function handleDpsRanking(interaction: any) {
     }
   } catch (error) {
     console.error("KVデータの読み込みエラー:", error);
-    await bot.helpers.sendInteractionResponse(
+    return bot.helpers.sendInteractionResponse(
       interaction.id,
       interaction.token,
       {
         type: InteractionResponseTypes.ChannelMessageWithSource,
         data: {
           content: '🤔 ランキングデータの読み込み中にエラーが発生しました。',
-          flags: 64,
         },
       }
     );
-    return;
   }
 
   const sortedUsers = entries.sort(([, a], [, b]) => (b.dps > a.dps) ? 1 : (b.dps < a.dps) ? -1 : 0);
 
   if (sortedUsers.length === 0) {
-    await bot.helpers.sendInteractionResponse(
+    return bot.helpers.sendInteractionResponse(
       interaction.id,
       interaction.token,
       {
@@ -202,7 +213,6 @@ async function handleDpsRanking(interaction: any) {
         },
       }
     );
-    return;
   }
 
   const rankingMessage = sortedUsers.slice(0, 10).map(([userId, entry], index) => {
@@ -252,24 +262,23 @@ async function updateRoles(guildId: bigint) {
   const sortedUsers = entries.sort(([, a], [, b]) => (b.dps > a.dps) ? 1 : (b.dps < a.dps) ? -1 : 0);
 
   const roleMap = {
-      1: Deno.env.get("ROLE_ID_TOP1")!,
-      2: Deno.env.get("ROLE_ID_TOP2")!,
-      3: Deno.env.get("ROLE_ID_TOP3")!,
-      10: Deno.env.get("ROLE_ID_TOP10")!,
+      1: ROLE_ID_TOP1,
+      2: ROLE_ID_TOP2,
+      3: ROLE_ID_TOP3,
+      10: ROLE_ID_TOP10,
   };
 
-  // 全ユーザーの既存ロールを削除
   const guild = await bot.helpers.getGuild(guildId);
-  if (guild) {
-    for (const memberId of await guild.members) {
+  if (!guild) return;
+
+  const currentMembers = await bot.helpers.getMembers(guildId);
+
+  // 既存のロールをすべて削除
+  for (const [memberId, member] of currentMembers) {
+    for (const roleId of Object.values(roleMap)) {
       try {
-        const member = await bot.helpers.getMember(guildId, memberId);
-        if (member) {
-          for (const roleId of Object.values(roleMap)) {
-            if (member.roles.includes(BigInt(roleId))) {
-                await bot.helpers.removeRole(guildId, memberId, BigInt(roleId));
-            }
-          }
+        if (member.roles.includes(BigInt(roleId))) {
+            await bot.helpers.removeRole(guildId, BigInt(memberId), BigInt(roleId));
         }
       } catch (error) {
         console.error(`ロール削除エラー (ユーザーID: ${memberId}):`, error);
@@ -281,9 +290,10 @@ async function updateRoles(guildId: bigint) {
   for (let i = 0; i < sortedUsers.length; i++) {
     const rank = i + 1;
     const [userId] = sortedUsers[i];
-    if (roleMap[rank as keyof typeof roleMap]) {
+    const roleIdStr = roleMap[rank as keyof typeof roleMap];
+    if (roleIdStr) {
       try {
-        const roleId = BigInt(roleMap[rank as keyof typeof roleMap]);
+        const roleId = BigInt(roleIdStr);
         await bot.helpers.addRole(guildId, BigInt(userId), roleId);
       } catch (error) {
         console.error(`ロール付与エラー (ランク: ${rank}, ユーザーID: ${userId}):`, error);
@@ -293,9 +303,16 @@ async function updateRoles(guildId: bigint) {
 }
 
 // ボットの起動
-
-await startBot(bot);
+try {
+  if (!DISCORD_TOKEN) {
+    throw new Error("DISCORD_TOKEN is not set.");
+  }
+  await startBot(bot);
+} catch (error) {
+  console.error("Bot failed to start:", error);
+}
 
 Deno.cron("Continuous Request", "*/2 * * * *", () => {
     console.log("running...");
 });
+
