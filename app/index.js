@@ -143,4 +143,4 @@ client.on('interactionCreate', async interaction => {
 });
 
 // ボットにログイン
-client.login(config.token);
+client.login(process.env.DISCORD_TOKEN);
