@@ -15,14 +15,12 @@ interface DpsEntry {
   dps: bigint;
 }
 
-// 単位と乗数のマッピング
 const units: Record<string, bigint> = {
   "No": 10n ** 30n,
   "Dc": 10n ** 33n,
   "Ud": 10n ** 36n,
 };
 
-// 環境変数を取得し、未設定の場合は空文字をデフォルトにする
 const DISCORD_TOKEN = Deno.env.get("DISCORD_TOKEN") || "";
 const GUILD_ID = Deno.env.get("GUILD_ID") || "";
 const ROLE_ID_TOP1 = Deno.env.get("ROLE_ID_TOP1") || "";
@@ -30,7 +28,6 @@ const ROLE_ID_TOP2 = Deno.env.get("ROLE_ID_TOP2") || "";
 const ROLE_ID_TOP3 = Deno.env.get("ROLE_ID_TOP3") || "";
 const ROLE_ID_TOP10 = Deno.env.get("ROLE_ID_TOP10") || "";
 
-// Discord Botクライアントの作成
 const bot: Bot = createBot({
   token: DISCORD_TOKEN,
   intents: Intents.Guilds,
@@ -47,7 +44,6 @@ const bot: Bot = createBot({
   },
 });
 
-// スラッシュコマンドの定義と登録
 bot.events.guildCreate = async (guild) => {
   console.log(`[GUILD_CREATE] Bot joined guild: ${guild.name} (${guild.id})`);
   if (guild.id.toString() !== GUILD_ID) {
@@ -101,7 +97,6 @@ bot.events.guildCreate = async (guild) => {
   }
 };
 
-// スラッシュコマンドの処理
 bot.events.interactionCreate = async (interaction) => {
   if (interaction.type !== InteractionTypes.ApplicationCommand) return;
 
@@ -123,10 +118,6 @@ bot.events.interactionCreate = async (interaction) => {
   }
 };
 
-/**
- * `/dps register` コマンドの処理
- * 遅延応答とフォローアップを実装
- */
 async function handleDpsRegister(interaction: any) {
   const valueStr = interaction.data?.options?.[0]?.options?.[0]?.value as string;
   const unit = interaction.data?.options?.[0]?.options?.[1]?.value as string | undefined;
@@ -143,14 +134,13 @@ async function handleDpsRegister(interaction: any) {
         type: InteractionResponseTypes.ChannelMessageWithSource,
         data: {
           content: '🔢 DPSの数値は正の整数である必要があります。',
-          flags: 64, // Ephemeral message
+          flags: 64,
         },
       }
     );
   }
 
   try {
-    // 応答が3秒以内に間に合わない可能性があるため、遅延応答を送信
     await bot.helpers.sendInteractionResponse(
       interaction.id,
       interaction.token,
@@ -175,12 +165,10 @@ async function handleDpsRegister(interaction: any) {
     await kv.set(["dps", guildId, user.id], dpsEntry);
     console.log(`[REGISTER] DPS saved for user ${user.username}.`);
 
-    // ロール更新はバックグラウンドで実行
     updateRoles(guildId).catch(error => {
       console.error("[ERROR] Role update failed in background:", error);
     });
     
-    // 遅延応答に対するフォローアップを送信
     await bot.helpers.editOriginalInteractionResponse(
         bot.id,
         interaction.token,
@@ -205,9 +193,6 @@ async function handleDpsRegister(interaction: any) {
   }
 }
 
-/**
- * `/dps ranking` コマンドの処理
- */
 async function handleDpsRanking(interaction: any) {
   const guildId = interaction.guildId!;
   const entries: [string, DpsEntry][] = [];
@@ -264,7 +249,6 @@ async function handleDpsRanking(interaction: any) {
   );
 }
 
-// DPSを単位付きの文字列に変換するヘルパー関数
 function formatDps(dps: bigint): string {
   const sortedUnits = Object.entries(units).sort(([, a], [, b]) => (b > a) ? 1 : (b < a) ? -1 : 0);
 
@@ -277,7 +261,6 @@ function formatDps(dps: bigint): string {
   return dps.toString();
 }
 
-// ロールを更新する関数
 async function updateRoles(guildId: bigint) {
   console.log(`[ROLE_UPDATE] Starting role update for guild ${guildId}`);
   const entries: [string, DpsEntry][] = [];
@@ -305,7 +288,6 @@ async function updateRoles(guildId: bigint) {
 
   const currentMembers = await bot.helpers.getMembers(guildId);
 
-  // 既存のロールをすべて削除
   for (const [memberId, member] of currentMembers) {
     for (const roleId of Object.values(roleMap)) {
       try {
@@ -319,7 +301,6 @@ async function updateRoles(guildId: bigint) {
     }
   }
 
-  // 新しいランキングに基づいてロールを付与
   for (let i = 0; i < sortedUsers.length; i++) {
     const rank = i + 1;
     const [userId] = sortedUsers[i];
@@ -337,7 +318,6 @@ async function updateRoles(guildId: bigint) {
   console.log("[ROLE_UPDATE] Role update complete.");
 }
 
-// ボットの起動
 try {
   if (!DISCORD_TOKEN) {
     throw new Error("[ERROR] DISCORD_TOKEN is not set.");
@@ -347,14 +327,10 @@ try {
   console.error("[ERROR] Bot failed to start:", error);
 }
 
-// Deno Cronで定期的に何かが動いていることを確認するためのログ
-Deno.cron("Continuous Request", "*/10 * * * *", () => {
-    console.log("[CRON] Bot is still running...");
-});
-
 Deno.cron("Continuous Request", "*/2 * * * *", () => {
     console.log("running...");
 });
+
 
 
 
