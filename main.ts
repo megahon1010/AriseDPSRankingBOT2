@@ -1,6 +1,7 @@
 // Discordeno v18 example: DPSランキングBot 複数サーバー対応
 import { createBot, startBot, Intents } from "discordeno";
 import { BOT_TOKEN } from "./config.ts";
+import { formatDps } from "./unit.ts";
 
 type DpsRecord = { userId: bigint; guildId: bigint; dps: number };
 
@@ -94,9 +95,9 @@ const bot = createBot({
           ranking.map(async (rec, idx) => {
             const member = await bot.helpers.getMember(guildId, rec.userId);
             const username = member.user?.username ?? "Unknown";
-            return `${idx + 1}位: ${username} - ${rec.dps}`;
-          })
-        );
+            return `${idx + 1}位: ${username} - ${formatDps(rec.dps)}`;
+        })
+      );
         await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
           type: 4,
           data: { content: `DPSランキング\n${entries.join("\n")}` },
@@ -118,6 +119,7 @@ await startBot(bot);
 Deno.cron("Continuous Request", "*/2 * * * *", () => {
     console.log("running...");
 });
+
 
 
 
