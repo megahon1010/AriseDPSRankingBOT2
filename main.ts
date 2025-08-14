@@ -81,9 +81,15 @@ const bot = createBot({
         console.log("削除対象のグローバルコマンドはありません。");
       }
       for (const cmd of existingCommands) {
-        await bot.helpers.deleteGlobalApplicationCommand(cmd.id);
-        console.log(`コマンド削除完了: ${cmd.name} (ID: ${cmd.id})`);
+        // IDが存在し、型がbigintかstringかを確認
+        if (!cmd.id) {
+          console.error(`コマンドにIDがありません: ${JSON.stringify(cmd)}`);
+          continue;
       }
+  // Discordeno v18は通常cmd.idはbigint型
+  await bot.helpers.deleteGlobalApplicationCommand(cmd.id);
+  console.log(`コマンド削除完了: ${cmd.name} (ID: ${cmd.id})`);
+}
       console.log("全グローバルコマンドの削除処理が終了しました。");
 
       // 新しいコマンドを登録
