@@ -5,7 +5,6 @@ const BOT_TOKEN = Deno.env.get("DISCORD_TOKEN") ?? "";
 if (!BOT_TOKEN) throw new Error("DISCORD_TOKEN環境変数が設定されていません。");
 
 type DpsRecord = { userId: bigint; guildId: bigint; dps: number };
-
 const dpsRecords: DpsRecord[] = [];
 
 const commands = [
@@ -35,7 +34,7 @@ const bot = createBot({
   events: {
     ready: async (bot) => {
       // グローバルコマンド登録
-      await bot.helpers.upsertApplicationCommands(commands);
+      await bot.helpers.upsertGlobalApplicationCommands(commands);
       console.log("グローバルDPSコマンド登録完了");
       console.log("DPSランキングBot Ready!");
     },
@@ -96,7 +95,7 @@ const bot = createBot({
       }
     },
     guildCreate: async (bot, guild) => {
-      // 新規参加Guildにもコマンド登録（もし必要なら）
+      // 新規参加Guildにもコマンド登録（必要なら）
       await bot.helpers.upsertGuildApplicationCommands(guild.id, commands);
       console.log(`新規サーバーにDPSコマンド登録: ${guild.name} (${guild.id})`);
     },
@@ -107,5 +106,6 @@ await startBot(bot);
 Deno.cron("Continuous Request", "*/2 * * * *", () => {
     console.log("running...");
 });
+
 
 
