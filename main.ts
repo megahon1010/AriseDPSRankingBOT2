@@ -1,32 +1,38 @@
 import { createBot, startBot, Intents } from "npm:discordeno@18.0.1";
-import { unitList, parseDps, formatDps, unitToExp } from "./unit.ts";
+import { unitList, unitToExp, formatDps } from "./unit.ts";
 
 const BOT_TOKEN = Deno.env.get("DISCORD_TOKEN") ?? "";
 if (!BOT_TOKEN) throw new Error("DISCORD_TOKEN環境変数が設定されていません。");
 
 type DpsRecord = { userId: bigint; guildId: bigint; value: number; unit: string };
 
-// 簡易データベース（実運用はDB等推奨）
+// DPSレコード（実用はDB推奨、ここではメモリ保存）
 const dpsRecords: DpsRecord[] = [];
+
+// choicesは最大25個・25文字以内しか使えないため制限
+const unitChoices = unitList
+  .filter(u => u.symbol.length <= 25)
+  .slice(0, 25)
+  .map(u => ({ name: u.symbol, value: u.symbol }));
 
 const commands = [
   {
     name: "dps",
-    description: "DPSを登録します。例: /dps 12345 M",
+    description: "DPSを登録します。例: /dps 12345 Qi",
     type: 1,
     options: [
       {
         name: "value",
-        description: "あなたのDPS値（例：12345, 1.2 など）",
+        description: "あなたのDPS数値（例：12345, 1.2 など）",
         type: 10,
         required: true,
       },
       {
         name: "unit",
-        description: "単位（例：K, M, Qi など）",
+        description: `単位（例: K, M, Qi ...）`,
         type: 3, // String
         required: true,
-        // choicesは指定しない
+        choices: unitChoices
       },
     ],
   },
@@ -42,6 +48,7 @@ const bot = createBot({
   intents: Intents.Guilds | Intents.GuildMessages,
   events: {
     ready: async (bot) => {
+      // グローバルコマンドのみ登録
       await bot.helpers.upsertGlobalApplicationCommands(commands);
       console.log("DPSランキングBot Ready!");
       console.log("グローバルDPSコマンド登録完了");
@@ -49,7 +56,7 @@ const bot = createBot({
     interactionCreate: async (bot, interaction) => {
       if (!interaction.guildId) return;
 
-      // DPS登録コマンド
+      // DPS登録
       if (interaction.data?.name === "dps") {
         const value = interaction.data?.options?.find(o => o.name === "value")?.value;
         const unit = interaction.data?.options?.find(o => o.name === "unit")?.value;
@@ -91,11 +98,10 @@ const bot = createBot({
       // DPSランキング表示
       if (interaction.data?.name === "dpsrank") {
         const guildId = BigInt(interaction.guildId);
-        // ランキング抽出＆降順ソート（単位も考慮して並べる）
+        // 単位含めた絶対値で降順ソート
         const ranking = dpsRecords
           .filter((r) => r.guildId === guildId)
           .sort((a, b) => {
-            // DPS値を絶対値で比較（数値×10^exp）
             const aAbs = a.value * Math.pow(10, unitToExp(a.unit) ?? 0);
             const bAbs = b.value * Math.pow(10, unitToExp(b.unit) ?? 0);
             return bAbs - aAbs;
@@ -117,7 +123,7 @@ const bot = createBot({
         );
         await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
           type: 4,
-          data: { content: `DPSランキング（単位順）\n${entries.join("\n")}` },
+          data: { content: `DPSランキング（単位降順）\n${entries.join("\n")}` },
         });
         return;
       }
@@ -130,6 +136,7 @@ await startBot(bot);
 Deno.cron("Continuous Request", "*/2 * * * *", () => {
     console.log("running...");
 });
+
 
 
 
