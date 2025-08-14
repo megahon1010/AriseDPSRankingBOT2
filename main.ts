@@ -1,6 +1,6 @@
 // Discordeno v18 example: DPSランキングBot 複数サーバー対応 (Deno対応)
 import { createBot, startBot, Intents } from "npm:discordeno@18.0.1"; // Deno用npm import
-import { BOT_TOKEN } from "./config.ts";
+const BOT_TOKEN = Deno.env.get("DISCORD_TOKEN") ?? ""; // 環境変数から取得
 import { formatDps } from "./unit.ts";
 
 type DpsRecord = { userId: bigint; guildId: bigint; dps: number };
@@ -119,3 +119,4 @@ await startBot(bot);
  Deno.cron("Continuous Request", "*/2 * * * *", () => {
    console.log("running...");
 });
+
