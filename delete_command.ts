@@ -3,11 +3,13 @@ import * as log from "https://deno.land/std@0.208.0/log/mod.ts";
 
 await log.setup({
   handlers: {
-    console: new log.handlers.ConsoleHandler("DEBUG"),
+    console: new log.handlers.ConsoleHandler("INFO", {
+      formatter: "{levelName} {msg}",
+    }),
   },
   loggers: {
     default: {
-      level: "DEBUG",
+      level: "INFO",
       handlers: ["console"],
     },
   },
@@ -22,13 +24,13 @@ const bot = createBot({
 try {
   const commands = await bot.helpers.getGlobalApplicationCommands();
   if (commands.length === 0) {
-    log.info("グローバルコマンドはありません。");
+    log.info("削除対象のグローバルコマンドはありません。");
   }
   for (const cmd of commands) {
     await bot.helpers.deleteGlobalApplicationCommand(cmd.id);
-    log.info(`Deleted command: ${cmd.name} (ID: ${cmd.id})`);
+    log.info(`コマンド削除完了: ${cmd.name} (ID: ${cmd.id})`);
   }
-  log.info("全てのグローバルコマンドの削除処理が完了しました。");
+  log.info("全グローバルコマンドの削除処理が終了しました。");
 } catch (err) {
   log.error(`コマンド削除中にエラー: ${err}`);
 }
