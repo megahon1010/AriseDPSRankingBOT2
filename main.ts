@@ -6,7 +6,6 @@ if (!BOT_TOKEN) throw new Error("DISCORD_TOKEN環境変数が設定されてい�
 
 type DpsRecord = { userId: bigint; guildId: bigint; value: number; unit: string };
 
-const BOT_TOKEN = Deno.env.get("DISCORD_TOKEN") ?? "";
 const bot = createBot({
   token: BOT_TOKEN,
   intents: Intents.Guilds,
