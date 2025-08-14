@@ -6,6 +6,26 @@ if (!BOT_TOKEN) throw new Error("DISCORD_TOKEN環境変数が設定されてい�
 
 type DpsRecord = { userId: bigint; guildId: bigint; value: number; unit: string };
 
+const BOT_TOKEN = Deno.env.get("DISCORD_TOKEN") ?? "";
+const bot = createBot({
+  token: BOT_TOKEN,
+  intents: Intents.Guilds,
+});
+
+try {
+  const commands = await bot.helpers.getGlobalApplicationCommands();
+  if (commands.length === 0) {
+    console.log("削除対象のグローバルコマンドはありません。");
+  }
+  for (const cmd of commands) {
+    await bot.helpers.deleteGlobalApplicationCommand(cmd.id);
+    console.log(`コマンド削除完了: ${cmd.name} (ID: ${cmd.id})`);
+  }
+  console.log("全グローバルコマンドの削除処理が終了しました。");
+} catch (err) {
+  console.error(`コマンド削除中にエラー: ${err}`);
+}
+
 // DPSレコード（実用はDB推奨、ここではメモリ保存）
 const dpsRecords: DpsRecord[] = [];
 
