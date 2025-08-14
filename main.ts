@@ -1,5 +1,5 @@
-// Discordeno v18 example: DPSランキングBot 複数サーバー対応
-import { createBot, startBot, Intents } from "discordeno";
+// Discordeno v18 example: DPSランキングBot 複数サーバー対応 (Deno対応)
+import { createBot, startBot, Intents } from "npm:discordeno@18.0.1"; // Deno用npm import
 import { BOT_TOKEN } from "./config.ts";
 import { formatDps } from "./unit.ts";
 
@@ -30,7 +30,6 @@ const commands = [
   },
 ];
 
-// Bot初期化
 const bot = createBot({
   token: BOT_TOKEN,
   intents: Intents.Guilds | Intents.GuildMessages,
@@ -70,7 +69,7 @@ const bot = createBot({
         }
         await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
           type: 4,
-          data: { content: `DPS(${dpsValue})を登録しました！` },
+          data: { content: `DPS(${formatDps(dpsValue)})を登録しました！` }, // 単位付き表示
         });
         return;
       }
@@ -95,9 +94,9 @@ const bot = createBot({
           ranking.map(async (rec, idx) => {
             const member = await bot.helpers.getMember(guildId, rec.userId);
             const username = member.user?.username ?? "Unknown";
-            return `${idx + 1}位: ${username} - ${formatDps(rec.dps)}`;
-        })
-      );
+            return `${idx + 1}位: ${username} - ${formatDps(rec.dps)}`; // 単位付き表示
+          })
+        );
         await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
           type: 4,
           data: { content: `DPSランキング\n${entries.join("\n")}` },
@@ -116,13 +115,7 @@ const bot = createBot({
 // 起動
 await startBot(bot);
 
-Deno.cron("Continuous Request", "*/2 * * * *", () => {
-    console.log("running...");
+// Deno Deployのみで利用する場合は下記をアンコメント
+ Deno.cron("Continuous Request", "*/2 * * * *", () => {
+   console.log("running...");
 });
-
-
-
-
-
-
-
