@@ -23,10 +23,10 @@ const commands = [
       },
       {
         name: "unit",
-        description: `単位（例：${unitList.map(u => u.symbol).slice(0,7).join(", ")}...）`,
+        description: "単位（例：K, M, Qi など）",
         type: 3, // String
         required: true,
-        choices: unitList.map(u => ({ name: u.symbol, value: u.symbol })),
+        // choicesは指定しない
       },
     ],
   },
@@ -130,6 +130,7 @@ await startBot(bot);
 Deno.cron("Continuous Request", "*/2 * * * *", () => {
     console.log("running...");
 });
+
 
 
 
