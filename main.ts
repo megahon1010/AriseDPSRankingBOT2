@@ -1,7 +1,10 @@
-// Discordeno v18 example: DPSランキングBot 複数サーバー対応 (Deno対応)
-import { createBot, startBot, Intents } from "npm:discordeno@18.0.1"; // Deno用npm import
-const BOT_TOKEN = Deno.env.get("DISCORD_TOKEN") ?? ""; // 環境変数から取得
+// DPSランキングBot 複数サーバー対応 Deno/Discordeno v18版
+import { createBot, startBot, Intents } from "npm:discordeno@18.0.1";
 import { formatDps } from "./unit.ts";
+
+// 環境変数からBotトークン取得（Deno CLI用）
+const BOT_TOKEN = Deno.env.get("DISCORD_TOKEN") ?? "";
+if (!BOT_TOKEN) throw new Error("DISCORD_TOKEN環境変数が設定されていません。");
 
 type DpsRecord = { userId: bigint; guildId: bigint; dps: number };
 
@@ -17,7 +20,7 @@ const commands = [
     options: [
       {
         name: "value",
-        description: "あなたのDPS値",
+        description: "あなたのDPS値（例：12345, 1e15 など）",
         type: 10, // Number
         required: true,
       },
@@ -115,8 +118,6 @@ const bot = createBot({
 // 起動
 await startBot(bot);
 
-// Deno Deployのみで利用する場合は下記をアンコメント
- Deno.cron("Continuous Request", "*/2 * * * *", () => {
-   console.log("running...");
+Deno.cron("Continuous Request", "*/2 * * * *", () => {
+    console.log("running...");
 });
-
