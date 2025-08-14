@@ -37,12 +37,11 @@ const bot = createBot({
   token: BOT_TOKEN,
   intents: Intents.Guilds | Intents.GuildMessages,
   events: {
-    ready: async (bot) => {
+        ready: async (bot) => {
       // 参加している全Guildにコマンド登録
-      const guilds = await bot.helpers.getGuilds();
-      for (const guild of guilds) {
-        await bot.helpers.upsertGuildApplicationCommands(guild.id, commands);
-        console.log(`DPSコマンド登録: ${guild.name} (${guild.id})`);
+      for (const [guildId, guild] of bot.guilds) {
+        await bot.helpers.upsertGuildApplicationCommands(guildId, commands);
+        console.log(`DPSコマンド登録: ${guild.name} (${guildId})`);
       }
       console.log("DPSランキングBot Ready!");
     },
@@ -121,3 +120,4 @@ await startBot(bot);
 Deno.cron("Continuous Request", "*/2 * * * *", () => {
     console.log("running...");
 });
+
