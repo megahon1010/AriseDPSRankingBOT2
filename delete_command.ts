@@ -6,14 +6,9 @@ const bot = createBot({
   intents: Intents.Guilds,
 });
 
-const commandName = "dps"; // 消したいコマンド名
-
+// すべてのグローバルコマンドを削除
 const commands = await bot.helpers.getGlobalApplicationCommands();
-const target = commands.find(cmd => cmd.name === commandName);
-
-if (target) {
-  await bot.helpers.deleteGlobalApplicationCommand(target.id);
-  console.log(`${commandName} コマンドを削除しました`);
-} else {
-  console.log(`${commandName} コマンドは見つかりませんでした`);
+for (const cmd of commands) {
+  await bot.helpers.deleteGlobalApplicationCommand(cmd.id);
+  console.log(`Deleted command: ${cmd.name}`);
 }
