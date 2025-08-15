@@ -1,4 +1,11 @@
-import { createBot, startBot, Intents } from "npm:discordeno@18.0.1";
+import {
+  createBot,
+  startBot,
+  Intents,
+  ApplicationCommandOptionTypes,
+  InteractionResponseTypes,
+  InteractionTypes,
+} from "https://deno.land/x/discordeno@18.0.1/mod.ts";
 
 // DPSランキングBotの主要機能 ------------------------------------------------------------
 
@@ -14,10 +21,12 @@ const unitList = [
   { exp: 66, symbol: "Uvg" }, { exp: 69, symbol: "Dvg" }, { exp: 72, symbol: "Tvg" },
   { exp: 75, symbol: "Qavg" },
 ];
+
 function unitToExp(symbol: string): number | null {
   const found = unitList.find(u => u.symbol === symbol);
   return found ? found.exp : null;
 }
+
 function formatDps(value: number, unit: string): string {
   return `${value}${unit}`;
 }
@@ -41,13 +50,13 @@ const commands = [
       {
         name: "value",
         description: "あなたのDPS数値（例：12345, 1.2 など）",
-        type: 10,
+        type: ApplicationCommandOptionTypes.Number,
         required: true,
       },
       {
         name: "unit",
         description: `単位（例: K, M, Qi ...）`,
-        type: 3,
+        type: ApplicationCommandOptionTypes.String,
         required: true,
         choices: unitChoices
       },
@@ -75,124 +84,142 @@ const bot = createBot({
   intents: Intents.Guilds | Intents.GuildMessages,
   events: {
     ready: async (bot) => {
-      // コマンドを一度全削除（古いコマンドの二重登録防止）
-      const existingCommands = await bot.helpers.getGlobalApplicationCommands();
-      if (existingCommands.length === 0) {
-        console.log("削除対象のグローバルコマンドはありません。");
-      }
-      for (const cmd of existingCommands) {
-        // IDが存在し、型がbigintかstringかを確認
-        if (!cmd.id) {
-          console.error(`コマンドにIDがありません: ${JSON.stringify(cmd)}`);
-          continue;
-      }
-  // Discordeno v18は通常cmd.idはbigint型
-  await bot.helpers.deleteGlobalApplicationCommand(cmd.id);
-  console.log(`コマンド削除完了: ${cmd.name} (ID: ${cmd.id})`);
-}
-      console.log("全グローバルコマンドの削除処理が終了しました。");
+      console.log(`[READY] DPSランキングBotが起動しました。ログインID: ${bot.id}`);
 
-      // 新しいコマンドを登録
-      await bot.helpers.upsertGlobalApplicationCommands(commands);
-      console.log("グローバルDPSコマンド登録完了");
-      console.log("DPSランキングBot Ready!");
+      try {
+        // コマンドを一度全削除（古いコマンドの二重登録防止）
+        const existingCommands = await bot.helpers.getGlobalApplicationCommands();
+        if (existingCommands.length === 0) {
+          console.log("[INFO] 削除対象のグローバルコマンドはありません。");
+        } else {
+          for (const cmd of existingCommands) {
+            if (!cmd.id) {
+              console.error(`[ERROR] コマンドにIDがありません: ${cmd.name}`);
+              continue;
+            }
+            await bot.helpers.deleteGlobalApplicationCommand(cmd.id);
+            console.log(`[SUCCESS] コマンド削除完了: ${cmd.name} (ID: ${cmd.id.toString()})`);
+          }
+          console.log("[INFO] 全グローバルコマンドの削除処理が終了しました。");
+        }
+
+        // 新しいコマンドを登録
+        await bot.helpers.upsertGlobalApplicationCommands(commands);
+        console.log("[SUCCESS] グローバルDPSコマンド登録完了");
+      } catch (error) {
+        console.error("[ERROR] コマンドの登録または削除中にエラーが発生しました:", error);
+      }
     },
     interactionCreate: async (bot, interaction) => {
-      if (!interaction.guildId) return;
+      // interaction.typeはDiscordeno v18ではenumです
+      if (interaction.type !== InteractionTypes.ApplicationCommand || !interaction.guildId) return;
 
-      // DPS登録
-      if (interaction.data?.name === "dps") {
+      const command = interaction.data?.name;
+      console.log(`[INTERACTION] /${command} コマンドを受信しました。`);
+
+      if (command === "dps") {
         const value = interaction.data?.options?.find(o => o.name === "value")?.value;
         const unit = interaction.data?.options?.find(o => o.name === "unit")?.value;
+
         if (typeof value !== "number" || typeof unit !== "string" || !interaction.user?.id) {
           await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
-            type: 4,
-            data: { content: "DPS値または単位が不正です。" },
+            type: InteractionResponseTypes.ChannelMessageWithSource,
+            data: { content: "DPS値または単位が不正です。", flags: 64 },
           });
           return;
         }
+
         const exp = unitToExp(unit);
         if (exp === null) {
           await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
-            type: 4,
-            data: { content: `単位「${unit}」は対応していません。` },
+            type: InteractionResponseTypes.ChannelMessageWithSource,
+            data: { content: `単位「${unit}」は対応していません。`, flags: 64 },
           });
           return;
         }
+
         const userId = BigInt(interaction.user.id);
         const guildId = BigInt(interaction.guildId);
         const index = dpsRecords.findIndex(
           (r) => r.userId === userId && r.guildId === guildId
         );
+
         if (index >= 0) {
           dpsRecords[index].value = value;
           dpsRecords[index].unit = unit;
         } else {
           dpsRecords.push({ userId, guildId, value, unit });
         }
+
         await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
-          type: 4,
-          data: { content: `DPS(${formatDps(value, unit)})を登録しました！` },
+          type: InteractionResponseTypes.ChannelMessageWithSource,
+          data: { content: `DPS(${formatDps(value, unit)})を登録しました！`, flags: 64 },
         });
+        console.log(`[SUCCESS] DPS登録完了: ${formatDps(value, unit)}`);
         return;
       }
 
-      // DPSランキング表示
-      if (interaction.data?.name === "dpsrank") {
+      if (command === "dpsrank") {
         const guildId = BigInt(interaction.guildId);
         const ranking = dpsRecords
           .filter((r) => r.guildId === guildId)
           .sort((a, b) => {
-            const aAbs = a.value * Math.pow(10, unitToExp(a.unit) ?? 0);
-            const bAbs = b.value * Math.pow(10, unitToExp(b.unit) ?? 0);
+            const aExp = unitToExp(a.unit) ?? 0;
+            const bExp = unitToExp(b.unit) ?? 0;
+            const aAbs = a.value * Math.pow(10, aExp);
+            const bAbs = b.value * Math.pow(10, bExp);
             return bAbs - aAbs;
           })
           .slice(0, 10);
+
         if (ranking.length === 0) {
           await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
-            type: 4,
-            data: { content: "まだDPS記録がありません。" },
+            type: InteractionResponseTypes.ChannelMessageWithSource,
+            data: { content: "まだDPS記録がありません。", flags: 64 },
           });
           return;
         }
+        
         const entries = await Promise.all(
           ranking.map(async (rec, idx) => {
             const member = await bot.helpers.getMember(guildId, rec.userId);
-            const username = member.user?.username ?? "Unknown";
+            const username = member?.user?.username ?? "Unknown";
             return `${idx + 1}位: ${username} - ${formatDps(rec.value, rec.unit)}`;
           })
         );
+        
         await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
-          type: 4,
+          type: InteractionResponseTypes.ChannelMessageWithSource,
           data: { content: `DPSランキング（単位降順）\n${entries.join("\n")}` },
         });
+        console.log("[SUCCESS] DPSランキング表示完了");
         return;
       }
 
-      // コマンド削除（管理者用コマンド）
-      if (interaction.data?.name === "deletecommands") {
+      if (command === "deletecommands") {
         const commands = await bot.helpers.getGlobalApplicationCommands();
         if (commands.length === 0) {
           await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
-            type: 4,
-            data: { content: "削除対象のグローバルコマンドはありません。" },
+            type: InteractionResponseTypes.ChannelMessageWithSource,
+            data: { content: "削除対象のグローバルコマンドはありません。", flags: 64 },
           });
-          console.log("削除対象のグローバルコマンドはありません。");
+          console.log("[INFO] 削除対象のグローバルコマンドはありません。");
           return;
         }
+        
         let resultMsg = "";
         for (const cmd of commands) {
           await bot.helpers.deleteGlobalApplicationCommand(cmd.id);
-          const msg = `コマンド削除完了: ${cmd.name} (ID: ${cmd.id})`;
+          const msg = `コマンド削除完了: ${cmd.name} (ID: ${cmd.id.toString()})`;
           resultMsg += msg + "\n";
-          console.log(msg);
+          console.log(`[SUCCESS] ${msg}`);
         }
+        
         await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
-          type: 4,
-          data: { content: resultMsg + "全グローバルコマンドの削除処理が終了しました。" },
+          type: InteractionResponseTypes.ChannelMessageWithSource,
+          data: { content: resultMsg + "全グローバルコマンドの削除処理が終了しました。", flags: 64 },
         });
-        console.log("全グローバルコマンドの削除処理が終了しました。");
-        // 必要なら再登録: await bot.helpers.upsertGlobalApplicationCommands(commands);
+        console.log("[SUCCESS] 全グローバルコマンドの削除処理が終了しました。");
         return;
       }
     },
@@ -200,6 +227,7 @@ const bot = createBot({
 });
 
 await startBot(bot);
+
 
 Deno.cron("Continuous Request", "*/2 * * * *", () => {
     console.log("running...");
