@@ -87,31 +87,14 @@ const bot = createBot({
       console.log(`[READY] DPSランキングBotが起動しました。ログインID: ${bot.id}`);
 
       try {
-        // コマンドを一度全削除（古いコマンドの二重登録防止）
-        const existingCommands = await bot.helpers.getGlobalApplicationCommands();
-        if (existingCommands.length === 0) {
-          console.log("[INFO] 削除対象のグローバルコマンドはありません。");
-        } else {
-          for (const cmd of existingCommands) {
-            if (!cmd.id) {
-              console.error(`[ERROR] コマンドにIDがありません: ${cmd.name}`);
-              continue;
-            }
-            await bot.helpers.deleteGlobalApplicationCommand(cmd.id);
-            console.log(`[SUCCESS] コマンド削除完了: ${cmd.name} (ID: ${cmd.id.toString()})`);
-          }
-          console.log("[INFO] 全グローバルコマンドの削除処理が終了しました。");
-        }
-
         // 新しいコマンドを登録
         await bot.helpers.upsertGlobalApplicationCommands(commands);
         console.log("[SUCCESS] グローバルDPSコマンド登録完了");
       } catch (error) {
-        console.error("[ERROR] コマンドの登録または削除中にエラーが発生しました:", error);
+        console.error("[ERROR] コマンドの登録中にエラーが発生しました:", error);
       }
     },
     interactionCreate: async (bot, interaction) => {
-      // interaction.typeはDiscordeno v18ではenumです
       if (interaction.type !== InteractionTypes.ApplicationCommand || !interaction.guildId) return;
 
       const command = interaction.data?.name;
@@ -209,10 +192,13 @@ const bot = createBot({
         
         let resultMsg = "";
         for (const cmd of commands) {
-          await bot.helpers.deleteGlobalApplicationCommand(cmd.id);
-          const msg = `コマンド削除完了: ${cmd.name} (ID: ${cmd.id.toString()})`;
-          resultMsg += msg + "\n";
-          console.log(`[SUCCESS] ${msg}`);
+          // cmd.idがundefinedではないことを確認
+          if (cmd.id) { 
+            await bot.helpers.deleteGlobalApplicationCommand(cmd.id);
+            const msg = `コマンド削除完了: ${cmd.name} (ID: ${cmd.id.toString()})`;
+            resultMsg += msg + "\n";
+            console.log(`[SUCCESS] ${msg}`);
+          }
         }
         
         await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
@@ -227,7 +213,6 @@ const bot = createBot({
 });
 
 await startBot(bot);
-
 
 Deno.cron("Continuous Request", "*/2 * * * *", () => {
     console.log("running...");
