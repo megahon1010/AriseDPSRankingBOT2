@@ -7,6 +7,9 @@ import {
   InteractionTypes,
 } from "https://deno.land/x/discordeno@18.0.1/mod.ts";
 
+// Deno KVの初期化
+const kv = await Deno.openKv();
+
 // DPSランキングBotの主要機能 ------------------------------------------------------------
 
 // 単位リスト
@@ -21,7 +24,7 @@ const unitList = [
   { exp: 24, symbol: "Sp" },
   { exp: 27, symbol: "Oc" },
   { exp: 30, symbol: "No" },
-  { exp: 33, symbol: "De" },
+  { exp: 33, symbol: "Dc" },
   { exp: 36, symbol: "Ud" },
   { exp: 39, symbol: "Dd" },
   { exp: 42, symbol: "Td" },
@@ -47,9 +50,13 @@ function formatDps(value: number, unit: string): string {
   return `${value}${unit}`;
 }
 
-// DPSデータ（メモリ保持）
-type DpsRecord = { userId: bigint; guildId: bigint; value: number; unit: string };
-const dpsRecords: DpsRecord[] = [];
+// DPSデータ保存用のインターフェース
+type DpsRecord = {
+  userId: bigint;
+  guildId: bigint;
+  value: number;
+  unit: string;
+};
 
 // Discordコマンド定義
 const unitChoices = unitList
@@ -102,8 +109,21 @@ const ROLE_ID_TOP10 = Deno.env.get("ROLE_ID_TOP10") ?? "";
 async function updateRoles(bot: any, guildId: bigint) {
   console.log(`[ROLE_UPDATE] Starting role update for guild ${guildId}`);
 
+  // KVからデータを読み込み
+  const dpsRecords: DpsRecord[] = [];
+  try {
+    const iter = kv.list({ prefix: ["dps_record"] });
+    for await (const entry of iter) {
+      if ((entry.value as DpsRecord).guildId === guildId) {
+        dpsRecords.push(entry.value as DpsRecord);
+      }
+    }
+  } catch (error) {
+    console.error("[ERROR] ロール更新時のKV読み込みエラー:", error);
+    return;
+  }
+
   const sortedUsers = dpsRecords
-    .filter((r) => r.guildId === guildId)
     .sort((a, b) => {
       const aExp = unitToExp(a.unit) ?? 0;
       const bExp = unitToExp(b.unit) ?? 0;
@@ -203,14 +223,15 @@ const bot = createBot({
 
         const userId = BigInt(interaction.user.id);
         const guildId = BigInt(interaction.guildId);
-        const index = dpsRecords.findIndex((r) => r.userId === userId && r.guildId === guildId);
-
-        if (index >= 0) {
-          dpsRecords[index].value = value;
-          dpsRecords[index].unit = unit;
-        } else {
-          dpsRecords.push({ userId, guildId, value, unit });
-        }
+        
+        // KVにデータを保存
+        const dpsRecord: DpsRecord = {
+          userId,
+          guildId,
+          value,
+          unit,
+        };
+        await kv.set(["dps_record", userId.toString()], dpsRecord);
 
         // ロール更新はバックグラウンドで実行
         updateRoles(bot, guildId).catch((error) => {
@@ -227,8 +248,26 @@ const bot = createBot({
 
       if (command === "dpsrank") {
         const guildId = BigInt(interaction.guildId);
+        
+        // KVからデータを読み込み
+        const dpsRecords: DpsRecord[] = [];
+        try {
+          const iter = kv.list({ prefix: ["dps_record"] });
+          for await (const entry of iter) {
+            if ((entry.value as DpsRecord).guildId === guildId) {
+              dpsRecords.push(entry.value as DpsRecord);
+            }
+          }
+        } catch (error) {
+          console.error("[ERROR] KVデータの読み込みエラー:", error);
+          await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
+            type: InteractionResponseTypes.ChannelMessageWithSource,
+            data: { content: '🤔 ランキングデータの読み込み中にエラーが発生しました。' },
+          });
+          return;
+        }
+
         const ranking = dpsRecords
-          .filter((r) => r.guildId === guildId)
           .sort((a, b) => {
             const aExp = unitToExp(a.unit) ?? 0;
             const bExp = unitToExp(b.unit) ?? 0;
@@ -297,5 +336,5 @@ const bot = createBot({
 await startBot(bot);
 
 Deno.cron("Continuous Request", "*/2 * * * *", () => {
-    console.log("running...");
+  console.log("running...");
 });
