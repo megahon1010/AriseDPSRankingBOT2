@@ -163,7 +163,7 @@ async function updateRoles(bot: any, guildId: bigint) {
 
   const guild = await bot.helpers.getGuild(guildId);
   if (!guild) {
-    console.error(`[ERROR] Guild not found: ${guildId}`);
+    console.serror(`[ERROR] Guild not found: ${guildId}`);
     return;
   }
 
@@ -214,7 +214,9 @@ const bot = createBot({
         // グローバルコマンドをすべて取得して削除
         const existingCommands = await bot.helpers.getGlobalApplicationCommands();
         for (const cmd of existingCommands) {
-            await bot.helpers.deleteGlobalApplicationCommand(cmd.id);
+            if (cmd.id) { // ここでidの存在をチェック
+                await bot.helpers.deleteGlobalApplicationCommand(cmd.id);
+            }
         }
         console.log("[SUCCESS] 既存のグローバルコマンドをすべて削除しました。");
 
