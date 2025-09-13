@@ -6,7 +6,7 @@ import {
   InteractionResponseTypes,
   InteractionTypes,
 } from "https://deno.land/x/discordeno@18.0.1/mod.ts";
-import { calculateSwords, calculateRemainingSwords } from "./sword_calculator.ts";
+import { calculateSwords, calculateRemainingSwords, convertToE } from "./sword_calculator.ts";
 
 const kv = await Deno.openKv();
 
@@ -356,12 +356,16 @@ const bot = createBot({
                 type: InteractionResponseTypes.ChannelMessageWithSource,
                 data: { content: "無効なランクが指定されました。", flags: 64 },
               });
+            } else if (result.needed === 0) {
+                 await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
+                    type: InteractionResponseTypes.ChannelMessageWithSource,
+                    data: { content: `**${targetRank.toUpperCase()}** ランクの剣は、持っている剣で達成可能です！`},
+                });
             } else {
               await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
                 type: InteractionResponseTypes.ChannelMessageWithSource,
                 data: { 
-                    content: `**${targetRank.toUpperCase()}** ランクの剣を作成するための計算結果:\n` +
-                             `不足している剣の総数は **${result.needed}** 本です。\n内訳:\n${result.breakdown}`
+                    content: `**${targetRank.toUpperCase()}** ランクの剣を1本作るには、不足しているEランクの剣が **${result.needed}** 本必要です。`
                 },
               });
             }
