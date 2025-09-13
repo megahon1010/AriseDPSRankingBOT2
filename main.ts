@@ -287,7 +287,7 @@ const bot = createBot({
 
         const entries = await Promise.all(
           ranking.map(async (rec, idx) => {
-            const member = await bot.helpers.getMember(guildId, rec.userId);
+            const member = await bot.helpers.getMember(guildId, rec.userId).catch(() => null);
             const username = member?.user?.username ?? "Unknown";
             return `${idx + 1}位: ${username} - ${formatDps(rec.value, rec.unit)}`;
           })
