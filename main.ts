@@ -6,7 +6,7 @@ import {
   InteractionResponseTypes,
   InteractionTypes,
 } from "https://deno.land/x/discordeno@18.0.1/mod.ts";
-import { calculateSwords } from "./sword_calculator.ts";
+import { calculateSwords, calculateRemainingSwords } from "./sword_calculator.ts";
 
 const kv = await Deno.openKv();
 
@@ -102,25 +102,19 @@ const commands = [
     type: 1,
     options: [
       {
-        name: "start_rank",
-        description: "現在持っている剣のランク",
-        type: ApplicationCommandOptionTypes.String,
-        required: true,
-        choices: swordRanksChoices,
-      },
-      {
         name: "target_rank",
         description: "到達したい剣のランク",
         type: ApplicationCommandOptionTypes.String,
         required: true,
         choices: swordRanksChoices,
       },
+      {
+        name: "owned_swords",
+        description: "現在持っている剣のランクと本数(例: g:1,ss:2)",
+        type: ApplicationCommandOptionTypes.String,
+        required: false, // 任意
+      },
     ],
-  },
-  {
-    name: "deletecommands",
-    description: "Botのグローバルコマンドをすべて削除します（管理者向け）",
-    type: 1,
   },
 ];
 
@@ -215,9 +209,18 @@ const bot = createBot({
     ready: async (bot) => {
       console.log(`[READY] DPSランキングBotが起動しました。ログインID: ${bot.id}`);
 
+      // 既存のコマンドをすべて削除して再登録
       try {
+        // グローバルコマンドをすべて取得して削除
+        const existingCommands = await bot.helpers.getGlobalApplicationCommands();
+        for (const cmd of existingCommands) {
+            await bot.helpers.deleteGlobalApplicationCommand(cmd.id);
+        }
+        console.log("[SUCCESS] 既存のグローバルコマンドをすべて削除しました。");
+
+        // 新しいコマンドを登録
         await bot.helpers.upsertGlobalApplicationCommands(commands);
-        console.log("[SUCCESS] グローバルDPSコマンド登録完了");
+        console.log("[SUCCESS] 新しいグローバルDPSコマンド登録完了");
       } catch (error) {
         console.error("[ERROR] コマンドの登録中にエラーが発生しました:", error);
       }
@@ -330,51 +333,45 @@ const bot = createBot({
       }
 
       if (command === "sword") {
-        const startRank = interaction.data?.options?.find((o) => o.name === "start_rank")?.value as string;
         const targetRank = interaction.data?.options?.find((o) => o.name === "target_rank")?.value as string;
+        const ownedSwordsStr = interaction.data?.options?.find((o) => o.name === "owned_swords")?.value as string;
 
-        const swordsNeeded = calculateSwords(startRank, targetRank);
+        let swordsNeeded = null;
+        let breakdown = "";
+
+        if (ownedSwordsStr) {
+          // 所持剣の文字列を解析
+          const ownedSwords = ownedSwordsStr.split(',').map(item => {
+              const [rank, count] = item.split(':');
+              return { rank: rank.trim(), count: parseInt(count, 10) || 0 };
+          });
+          const result = calculateRemainingSwords(targetRank, ownedSwords);
+          if (result) {
+              swordsNeeded = result.needed;
+              breakdown = result.breakdown;
+          }
+        } else {
+          // 所持剣が指定されていない場合は、以前のロジックを使用
+          swordsNeeded = calculateSwords("e", targetRank);
+          if (swordsNeeded !== null) {
+              breakdown = `目標ランクの剣を1本合成するために必要な、Eランクの剣の総数です。`;
+          }
+        }
 
         if (swordsNeeded === null) {
           await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
             type: InteractionResponseTypes.ChannelMessageWithSource,
-            data: { content: "無効なランクが指定されました。開始ランクが目的ランクより下であることを確認してください。", flags: 64 },
+            data: { content: "無効なランクが指定されました。", flags: 64 },
           });
         } else {
           await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
             type: InteractionResponseTypes.ChannelMessageWithSource,
-            data: { content: `**${startRank.toUpperCase()}** ランクの剣から **${targetRank.toUpperCase()}** ランクの剣を1本作るには、**${swordsNeeded}** 本の **${startRank.toUpperCase()}** ランクの剣が必要です。` },
+            data: { 
+                content: `**${targetRank.toUpperCase()}** ランクの剣を作成するための計算結果:\n` +
+                         (ownedSwordsStr ? `不足している剣の総数は **${swordsNeeded}** 本です。\n内訳:\n${breakdown}` : `必要な剣の総数は **${swordsNeeded}** 本です。`)
+            },
           });
         }
-      }
-
-      if (command === "deletecommands") {
-        const commands = await bot.helpers.getGlobalApplicationCommands();
-        if (commands.length === 0) {
-          await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
-            type: InteractionResponseTypes.ChannelMessageWithSource,
-            data: { content: "削除対象のグローバルコマンドはありません。", flags: 64 },
-          });
-          console.log("[INFO] 削除対象のグローバルコマンドはありません。");
-          return;
-        }
-
-        let resultMsg = "";
-        for (const cmd of commands) {
-          if (cmd.id) {
-            await bot.helpers.deleteGlobalApplicationCommand(cmd.id);
-            const msg = `コマンド削除完了: ${cmd.name} (ID: ${cmd.id.toString()})`;
-            resultMsg += msg + "\n";
-            console.log(`[SUCCESS] ${msg}`);
-          }
-        }
-
-        await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
-          type: InteractionResponseTypes.ChannelMessageWithSource,
-          data: { content: resultMsg + "全グローバルコマンドの削除処理が終了しました。", flags: 64 },
-        });
-        console.log("[SUCCESS] 全グローバルコマンドの削除処理が終了しました。");
-        return;
       }
     },
   },
