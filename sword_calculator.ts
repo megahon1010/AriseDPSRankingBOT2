@@ -46,29 +46,46 @@ export function calculateRemainingSwords(targetRank: string, ownedSwords: { rank
     const ownedMap = new Map<string, number>();
     ownedSwords.forEach(s => ownedMap.set(s.rank.toLowerCase(), s.count));
 
-    let neededForRank = 1; // 最終的に必要な目標ランクの剣は1本
-    let totalSwordsNeeded = 0; // 不足している剣の総数
-    const breakdown: string[] = [];
+    let totalNeededForTarget = 1; // 最終的に必要な目標ランクの剣は1本
 
+    const neededBreakdown = new Map<string, number>();
+
+    // 目標ランクから一番低いランクまで遡って計算
     for (let i = targetIndex; i > 0; i--) {
+        const currentRank = swordRanks[i];
         const prevRank = swordRanks[i - 1];
-        
-        const needed = neededForRank * 3;
+
+        const needed = totalNeededForTarget * 3;
         const ownedCount = ownedMap.get(prevRank) || 0;
         
         const remaining = needed - ownedCount;
-        
-        if (remaining > 0) {
-            totalSwordsNeeded += remaining;
-            breakdown.unshift(`- **${prevRank.toUpperCase()}**: ${remaining}本`);
-            neededForRank = remaining; // 次のランクの必要本数を更新
-        } else {
-            neededForRank = 0; // 足りているので、それより下のランクは不要
-        }
 
+        if (remaining > 0) {
+            neededBreakdown.set(prevRank, (neededBreakdown.get(prevRank) || 0) + remaining);
+            totalNeededForTarget = remaining;
+        } else {
+            // 足りている場合は、次のランクを合成できる分を計算
+            const newSwords = Math.floor(ownedCount / 3);
+            const remainingSwords = ownedCount % 3;
+            totalNeededForTarget -= newSwords;
+            if (totalNeededForTarget < 0) totalNeededForTarget = 0;
+            // 次のランクに必要な本数が0になった時点で、これ以上下のランクの剣は不要
+            if (totalNeededForTarget === 0) break;
+        }
     }
 
-    if(totalSwordsNeeded === 0){
+    const totalSwordsNeeded = Array.from(neededBreakdown.values()).reduce((sum, count) => sum + count, 0);
+    
+    const breakdown: string[] = [];
+    if (totalSwordsNeeded > 0) {
+        // breakdownを元のランク順に並べ替え
+        for (let i = 0; i < swordRanks.length; i++) {
+            const rank = swordRanks[i];
+            if (neededBreakdown.has(rank)) {
+                breakdown.push(`- **${rank.toUpperCase()}**: ${neededBreakdown.get(rank)}本`);
+            }
+        }
+    } else {
         breakdown.push("・持っている剣で達成可能です！");
     }
 
