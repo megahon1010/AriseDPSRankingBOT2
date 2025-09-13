@@ -163,7 +163,7 @@ async function updateRoles(bot: any, guildId: bigint) {
 
   const guild = await bot.helpers.getGuild(guildId);
   if (!guild) {
-    console.serror(`[ERROR] Guild not found: ${guildId}`);
+    console.error(`[ERROR] Guild not found: ${guildId}`);
     return;
   }
 
@@ -338,41 +338,53 @@ const bot = createBot({
         const targetRank = interaction.data?.options?.find((o) => o.name === "target_rank")?.value as string;
         const ownedSwordsStr = interaction.data?.options?.find((o) => o.name === "owned_swords")?.value as string;
 
-        let swordsNeeded = null;
-        let breakdown = "";
-
         if (ownedSwordsStr) {
-          // 所持剣の文字列を解析
-          const ownedSwords = ownedSwordsStr.split(',').map(item => {
-              const [rank, count] = item.split(':');
-              return { rank: rank.trim(), count: parseInt(count, 10) || 0 };
-          });
-          const result = calculateRemainingSwords(targetRank, ownedSwords);
-          if (result) {
-              swordsNeeded = result.needed;
-              breakdown = result.breakdown;
+          try {
+            // 所持剣の文字列を解析
+            const ownedSwords = ownedSwordsStr.split(',').map(item => {
+                const [rank, count] = item.split(':');
+                if (!rank || !count || isNaN(parseInt(count))) {
+                  throw new Error("Invalid format");
+                }
+                return { rank: rank.trim(), count: parseInt(count.trim(), 10) };
+            });
+
+            const result = calculateRemainingSwords(targetRank, ownedSwords);
+
+            if (result === null) {
+              await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
+                type: InteractionResponseTypes.ChannelMessageWithSource,
+                data: { content: "無効なランクが指定されました。", flags: 64 },
+              });
+            } else {
+              await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
+                type: InteractionResponseTypes.ChannelMessageWithSource,
+                data: { 
+                    content: `**${targetRank.toUpperCase()}** ランクの剣を作成するための計算結果:\n` +
+                             `不足している剣の総数は **${result.needed}** 本です。\n内訳:\n${result.breakdown}`
+                },
+              });
+            }
+          } catch (error) {
+            await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
+                type: InteractionResponseTypes.ChannelMessageWithSource,
+                data: { content: "所持剣の形式が正しくありません。\n例: `g:1,ss:2`", flags: 64 },
+            });
           }
         } else {
           // 所持剣が指定されていない場合は、以前のロジックを使用
-          swordsNeeded = calculateSwords("e", targetRank);
-          if (swordsNeeded !== null) {
-              breakdown = `目標ランクの剣を1本合成するために必要な、Eランクの剣の総数です。`;
+          const swordsNeeded = calculateSwords("e", targetRank);
+          if (swordsNeeded === null) {
+            await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
+              type: InteractionResponseTypes.ChannelMessageWithSource,
+              data: { content: "無効なランクが指定されました。", flags: 64 },
+            });
+          } else {
+            await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
+              type: InteractionResponseTypes.ChannelMessageWithSource,
+              data: { content: `**${targetRank.toUpperCase()}** ランクの剣を1本作るには、**${swordsNeeded}** 本の **E** ランクの剣が必要です。`},
+            });
           }
-        }
-
-        if (swordsNeeded === null) {
-          await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
-            type: InteractionResponseTypes.ChannelMessageWithSource,
-            data: { content: "無効なランクが指定されました。", flags: 64 },
-          });
-        } else {
-          await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
-            type: InteractionResponseTypes.ChannelMessageWithSource,
-            data: { 
-                content: `**${targetRank.toUpperCase()}** ランクの剣を作成するための計算結果:\n` +
-                         (ownedSwordsStr ? `不足している剣の総数は **${swordsNeeded}** 本です。\n内訳:\n${breakdown}` : `必要な剣の総数は **${swordsNeeded}** 本です。`)
-            },
-          });
         }
       }
     },
