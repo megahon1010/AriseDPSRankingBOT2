@@ -7,10 +7,17 @@ import {
   InteractionTypes,
 } from "https://deno.land/x/discordeno@18.0.1/mod.ts";
 
-// Deno KVの初期化
 const kv = await Deno.openKv();
 
 // DPSランキングBotの主要機能 ------------------------------------------------------------
+
+// DPSデータ保存用のインターフェース
+type DpsRecord = {
+  userId: bigint;
+  guildId: bigint;
+  value: number;
+  unit: string;
+};
 
 // 単位リスト
 const unitList = [
@@ -24,7 +31,7 @@ const unitList = [
   { exp: 24, symbol: "Sp" },
   { exp: 27, symbol: "Oc" },
   { exp: 30, symbol: "No" },
-  { exp: 33, symbol: "Dc" },
+  { exp: 33, symbol: "De" },
   { exp: 36, symbol: "Ud" },
   { exp: 39, symbol: "Dd" },
   { exp: 42, symbol: "Td" },
@@ -49,14 +56,6 @@ function unitToExp(symbol: string): number | null {
 function formatDps(value: number, unit: string): string {
   return `${value}${unit}`;
 }
-
-// DPSデータ保存用のインターフェース
-type DpsRecord = {
-  userId: bigint;
-  guildId: bigint;
-  value: number;
-  unit: string;
-};
 
 // Discordコマンド定義
 const unitChoices = unitList
@@ -106,6 +105,7 @@ const ROLE_ID_TOP2 = Deno.env.get("ROLE_ID_TOP2") ?? "";
 const ROLE_ID_TOP3 = Deno.env.get("ROLE_ID_TOP3") ?? "";
 const ROLE_ID_TOP10 = Deno.env.get("ROLE_ID_TOP10") ?? "";
 
+// KVからデータを取得してロールを更新する関数
 async function updateRoles(bot: any, guildId: bigint) {
   console.log(`[ROLE_UPDATE] Starting role update for guild ${guildId}`);
 
