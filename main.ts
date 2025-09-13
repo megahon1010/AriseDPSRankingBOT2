@@ -340,13 +340,13 @@ const bot = createBot({
 
         if (ownedSwordsStr) {
           try {
-            // 所持剣の文字列を解析
+            // 所持剣の文字列を正規表現で解析
             const ownedSwords = ownedSwordsStr.split(',').map(item => {
-                const [rank, count] = item.split(':');
-                if (!rank || !count || isNaN(parseInt(count))) {
-                  throw new Error("Invalid format");
+                const parts = item.split(':').map(p => p.trim());
+                if (parts.length !== 2 || isNaN(parseInt(parts[1]))) {
+                    throw new Error("Invalid format");
                 }
-                return { rank: rank.trim(), count: parseInt(count.trim(), 10) };
+                return { rank: parts[0], count: parseInt(parts[1], 10) };
             });
 
             const result = calculateRemainingSwords(targetRank, ownedSwords);
