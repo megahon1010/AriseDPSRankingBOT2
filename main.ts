@@ -6,6 +6,7 @@ import {
   InteractionResponseTypes,
   InteractionTypes,
 } from "https://deno.land/x/discordeno@18.0.1/mod.ts";
+import { calculateSwords } from "./sword_calculator.ts";
 
 const kv = await Deno.openKv();
 
@@ -62,6 +63,12 @@ const unitChoices = unitList
   .filter((u) => u.symbol.length <= 25)
   .slice(0, 25)
   .map((u) => ({ name: u.symbol, value: u.symbol }));
+  
+// 剣のランク
+const swordRanksChoices = [
+    "e", "d", "c", "b", "a", "s", "ss", "g", "n", "n+",
+    "m", "m+", "gm", "ugm", "ugm+", "hgm", "hgm+", "r", "r+"
+].map(rank => ({ name: rank, value: rank }));
 
 const commands = [
   {
@@ -88,6 +95,27 @@ const commands = [
     name: "dpsrank",
     description: "サーバー内DPSランキングを表示します。",
     type: 1,
+  },
+  {
+    name: "sword",
+    description: "剣の合成に必要な本数を計算します。",
+    type: 1,
+    options: [
+      {
+        name: "start_rank",
+        description: "現在持っている剣のランク",
+        type: ApplicationCommandOptionTypes.String,
+        required: true,
+        choices: swordRanksChoices,
+      },
+      {
+        name: "target_rank",
+        description: "到達したい剣のランク",
+        type: ApplicationCommandOptionTypes.String,
+        required: true,
+        choices: swordRanksChoices,
+      },
+    ],
   },
   {
     name: "deletecommands",
@@ -299,6 +327,25 @@ const bot = createBot({
         });
         console.log("[SUCCESS] DPSランキング表示完了");
         return;
+      }
+
+      if (command === "sword") {
+        const startRank = interaction.data?.options?.find((o) => o.name === "start_rank")?.value as string;
+        const targetRank = interaction.data?.options?.find((o) => o.name === "target_rank")?.value as string;
+
+        const swordsNeeded = calculateSwords(startRank, targetRank);
+
+        if (swordsNeeded === null) {
+          await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
+            type: InteractionResponseTypes.ChannelMessageWithSource,
+            data: { content: "無効なランクが指定されました。開始ランクが目的ランクより下であることを確認してください。", flags: 64 },
+          });
+        } else {
+          await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
+            type: InteractionResponseTypes.ChannelMessageWithSource,
+            data: { content: `**${startRank.toUpperCase()}** ランクの剣から **${targetRank.toUpperCase()}** ランクの剣を1本作るには、**${swordsNeeded}** 本の **${startRank.toUpperCase()}** ランクの剣が必要です。` },
+          });
+        }
       }
 
       if (command === "deletecommands") {
