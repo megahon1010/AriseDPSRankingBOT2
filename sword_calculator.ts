@@ -31,66 +31,60 @@ export function calculateSwords(startRank: string, targetRank: string): number |
 }
 
 /**
+ * あるランクの剣を、Eランクに換算したときの総数を計算します。
+ * @param rank 剣のランク
+ * @param count 剣の本数
+ * @returns Eランク換算の総数
+ */
+export function convertToE(rank: string, count: number): number | null {
+    const startIndex = swordRanks.indexOf(rank.toLowerCase());
+    if (startIndex === -1) {
+        return null;
+    }
+
+    let totalE = count;
+    for (let i = startIndex; i > 0; i--) {
+        totalE *= 3;
+    }
+
+    return totalE;
+}
+
+/**
  * 目標ランクを達成するために、現在不足している剣の数を計算します。
  * @param targetRank 目標ランク
  * @param ownedSwords 現在持っている剣のリスト（例: [{rank: "g", count: 1}, {rank: "ss", count: 2}])
- * @returns 不足している剣の数と、合成に必要な内訳
+ * @returns 不足している剣の数
  */
-export function calculateRemainingSwords(targetRank: string, ownedSwords: { rank: string, count: number }[]): { needed: number, breakdown: string } | null {
+export function calculateRemainingSwords(targetRank: string, ownedSwords: { rank: string, count: number }[]): { needed: number } | null {
     const targetIndex = swordRanks.indexOf(targetRank.toLowerCase());
     if (targetIndex === -1) {
         return null; // 無効な目標ランク
     }
-    
-    // 現在の所持剣をMapに変換して検索を高速化
-    const ownedMap = new Map<string, number>();
-    ownedSwords.forEach(s => ownedMap.set(s.rank.toLowerCase(), s.count));
 
-    let totalNeededForTarget = 1; // 最終的に必要な目標ランクの剣は1本
-
-    const neededBreakdown = new Map<string, number>();
-
-    // 目標ランクから一番低いランクまで遡って計算
-    for (let i = targetIndex; i > 0; i--) {
-        const currentRank = swordRanks[i];
-        const prevRank = swordRanks[i - 1];
-
-        const needed = totalNeededForTarget * 3;
-        const ownedCount = ownedMap.get(prevRank) || 0;
-        
-        const remaining = needed - ownedCount;
-
-        if (remaining > 0) {
-            neededBreakdown.set(prevRank, (neededBreakdown.get(prevRank) || 0) + remaining);
-            totalNeededForTarget = remaining;
-        } else {
-            // 足りている場合は、次のランクを合成できる分を計算
-            const newSwords = Math.floor(ownedCount / 3);
-            const remainingSwords = ownedCount % 3;
-            totalNeededForTarget -= newSwords;
-            if (totalNeededForTarget < 0) totalNeededForTarget = 0;
-            // 次のランクに必要な本数が0になった時点で、これ以上下のランクの剣は不要
-            if (totalNeededForTarget === 0) break;
-        }
+    // 目標ランクに必要なEランクの剣の総数を計算
+    const neededTotalE = calculateSwords("e", targetRank);
+    if (neededTotalE === null) {
+        return null;
     }
 
-    const totalSwordsNeeded = Array.from(neededBreakdown.values()).reduce((sum, count) => sum + count, 0);
-    
-    const breakdown: string[] = [];
-    if (totalSwordsNeeded > 0) {
-        // breakdownを元のランク順に並べ替え
-        for (let i = 0; i < swordRanks.length; i++) {
-            const rank = swordRanks[i];
-            if (neededBreakdown.has(rank)) {
-                breakdown.push(`- **${rank.toUpperCase()}**: ${neededBreakdown.get(rank)}本`);
-            }
+    // 所持している剣をすべてEランクに換算して総数を計算
+    let ownedTotalE = 0;
+    for (const sword of ownedSwords) {
+        const eCount = convertToE(sword.rank, sword.count);
+        if (eCount === null) {
+            return null; // 無効な所持ランク
         }
-    } else {
-        breakdown.push("・持っている剣で達成可能です！");
+        ownedTotalE += eCount;
     }
 
-    return {
-        needed: totalSwordsNeeded,
-        breakdown: breakdown.join("\n")
-    };
+    // 不足しているEランクの剣の総数
+    const remainingTotalE = neededTotalE - ownedTotalE;
+    
+    // 不足分が0以下なら、達成可能
+    if (remainingTotalE <= 0) {
+        return { needed: 0 };
+    }
+
+    return { needed: remainingTotalE };
 }
