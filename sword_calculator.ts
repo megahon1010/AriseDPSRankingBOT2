@@ -46,25 +46,24 @@ export function calculateRemainingSwords(targetRank: string, ownedSwords: { rank
     const ownedMap = new Map<string, number>();
     ownedSwords.forEach(s => ownedMap.set(s.rank.toLowerCase(), s.count));
 
-    let neededForTarget = 1; // 最終的に必要な目標ランクの剣は1本
+    let neededForRank = 1; // 最終的に必要な目標ランクの剣は1本
     let totalSwordsNeeded = 0; // 不足している剣の総数
     const breakdown: string[] = [];
 
     for (let i = targetIndex; i > 0; i--) {
         const prevRank = swordRanks[i - 1];
         
-        const needed = neededForTarget * 3;
+        const needed = neededForRank * 3;
         const ownedCount = ownedMap.get(prevRank) || 0;
         
-        // 不足分を計算
-        const 부족분 = needed - ownedCount;
+        const remaining = needed - ownedCount;
         
-        if (부족분 > 0) {
-          totalSwordsNeeded += 부족분;
-          breakdown.unshift(`- **${prevRank.toUpperCase()}**: ${부족분}本`);
-          neededForTarget = 부족분;
+        if (remaining > 0) {
+            totalSwordsNeeded += remaining;
+            breakdown.unshift(`- **${prevRank.toUpperCase()}**: ${remaining}本`);
+            neededForRank = remaining; // 次のランクの必要本数を更新
         } else {
-            neededForTarget = 0; // 足りているので、それより下のランクは不要
+            neededForRank = 0; // 足りているので、それより下のランクは不要
         }
 
     }
