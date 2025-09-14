@@ -6,7 +6,7 @@ import {
   InteractionResponseTypes,
   InteractionTypes,
 } from "https://deno.land/x/discordeno@18.0.1/mod.ts";
-import { calculateSwords, calculateRemainingSwords, convertToE } from "./sword_calculator.ts";
+import { calculateSwords, calculateRemainingSwords, convertFromTo } from "./sword_calculator.ts";
 
 const kv = await Deno.openKv();
 
@@ -113,6 +113,13 @@ const commands = [
         description: "現在持っている剣のランクと本数(例: g:1,ss:2)",
         type: ApplicationCommandOptionTypes.String,
         required: false, // 任意
+      },
+      {
+        name: "base_rank",
+        description: "不足数を換算したい基準ランク (省略可、デフォルトはE)",
+        type: ApplicationCommandOptionTypes.String,
+        required: false,
+        choices: swordRanksChoices,
       },
     ],
   },
@@ -337,6 +344,7 @@ const bot = createBot({
       if (command === "sword") {
         const targetRank = interaction.data?.options?.find((o) => o.name === "target_rank")?.value as string;
         const ownedSwordsStr = interaction.data?.options?.find((o) => o.name === "owned_swords")?.value as string;
+        const baseRank = (interaction.data?.options?.find((o) => o.name === "base_rank")?.value as string) || "e";
 
         if (ownedSwordsStr) {
           try {
@@ -349,7 +357,7 @@ const bot = createBot({
                 return { rank: parts[0], count: parseInt(parts[1], 10) };
             });
 
-            const result = calculateRemainingSwords(targetRank, ownedSwords);
+            const result = calculateRemainingSwords(targetRank, ownedSwords, baseRank);
 
             if (result === null) {
               await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
@@ -365,7 +373,7 @@ const bot = createBot({
               await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
                 type: InteractionResponseTypes.ChannelMessageWithSource,
                 data: { 
-                    content: `**${targetRank.toUpperCase()}** ランクの剣を1本作るには、不足しているEランクの剣が **${result.needed}** 本必要です。`
+                    content: `**${targetRank.toUpperCase()}** ランクの剣を1本作るには、不足している**${baseRank.toUpperCase()}** ランクの剣が **${result.needed}** 本必要です。`
                 },
               });
             }
@@ -377,7 +385,7 @@ const bot = createBot({
           }
         } else {
           // 所持剣が指定されていない場合は、以前のロジックを使用
-          const swordsNeeded = calculateSwords("e", targetRank);
+          const swordsNeeded = calculateSwords(baseRank, targetRank);
           if (swordsNeeded === null) {
             await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
               type: InteractionResponseTypes.ChannelMessageWithSource,
@@ -386,7 +394,7 @@ const bot = createBot({
           } else {
             await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
               type: InteractionResponseTypes.ChannelMessageWithSource,
-              data: { content: `**${targetRank.toUpperCase()}** ランクの剣を1本作るには、**${swordsNeeded}** 本の **E** ランクの剣が必要です。`},
+              data: { content: `**${targetRank.toUpperCase()}** ランクの剣を1本作るには、**${swordsNeeded}** 本の **${baseRank.toUpperCase()}** ランクの剣が必要です。`},
             });
           }
         }
