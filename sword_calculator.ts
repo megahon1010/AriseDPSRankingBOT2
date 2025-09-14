@@ -81,12 +81,12 @@ export function calculateRemainingSwords(targetRank: string, ownedSwords: { rank
         return null; // 無効な目標ランクまたは基準ランク
     }
 
-    // 目標ランクに必要な基準ランクの剣の総数を計算
+    // 目標ランクの剣1本を基準ランクに換算
     const neededTotalBase = convertFromTo(targetRank, baseRank, 1);
     if (neededTotalBase === null) {
         return null;
     }
-
+    
     // 所持している剣をすべて基準ランクに換算して総数を計算
     let ownedTotalBase = 0;
     for (const sword of ownedSwords) {
