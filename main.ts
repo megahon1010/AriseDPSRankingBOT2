@@ -67,7 +67,7 @@ const unitChoices = unitList
 // 剣のランク
 const swordRanksChoices = [
     "e", "d", "c", "b", "a", "s", "ss", "g", "n", "n+",
-    "m", "m+", "gm", "ugm", "ugm+", "hgm", "hgm+", "r", "r+"
+    "m", "m+", "gm", "gm+", "ugm", "ugm+", "hgm", "hgm+", "r", "r+", "mr", "mr+"
 ].map(rank => ({ name: rank, value: rank }));
 
 const commands = [
