@@ -3,7 +3,7 @@
 // 剣のランクを定義した配列
 const swordRanks = [
   "e", "d", "c", "b", "a", "s", "ss", "g", "n", "n+",
-  "m", "m+", "gm", "gm+", "ugm", "ugm+", "hgm", "hgm+", "r", "r+"
+  "m", "m+", "gm", "gm+", "ugm", "ugm+", "hgm", "hgm+", "r", "r+", "mr", "mr+"
 ];
 
 /**
