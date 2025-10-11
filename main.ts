@@ -423,7 +423,7 @@ Deno.cron("Remind", "18,38,58 * * * *", async () => {
     
     // チャンネルにメッセージを送信
     try {
-        await bot.helpers.sendMessage(BigInt(channelId), { content: "@&1426509530640158730 The World Boss will appear in 2 min ワールドボスが二分後に出現します！" }); 
+        await bot.helpers.sendMessage(BigInt(channelId), { content: "@1426509530640158730 The World Boss will appear in 2 min ワールドボスが二分後に出現します！" }); 
         console.log(`Sent @here remind message to channel ${channelId}`);
     } catch (error) {
         console.error(`[ERROR] Failed to send message to channel ${channelId}:`, error);
