@@ -1,9 +1,9 @@
 // sword_calculator.ts
 
-// 剣のランクを定義した配列
+// 剣のランクを定義した配列 (GM+、MR、MR+、GR、GR+を追加)
 const swordRanks = [
   "e", "d", "c", "b", "a", "s", "ss", "g", "n", "n+",
-  "m", "m+", "gm", "gm+", "ugm", "ugm+", "hgm", "hgm+", "r", "r+", "mr", "mr+"
+  "m", "m+", "gm", "gm+", "ugm", "ugm+", "hgm", "hgm+", "r", "r+", "mr", "mr+", "gr", "gr+" // GRとGR+を追加
 ];
 
 /**
