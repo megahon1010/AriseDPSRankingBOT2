@@ -6,7 +6,9 @@ import {
   InteractionResponseTypes,
   InteractionTypes,
 } from "https://deno.land/x/discordeno@18.0.1/mod.ts";
-import { calculateSwords, calculateRemainingSwords, convertFromTo } from "./sword_calculator.ts";
+import { calculateSwords, calculateRemainingSwords } from "./sword_calculator.ts";
+// 🚀 dps_units.ts からインポートするように変更 🚀
+import { unitToExp, formatDps, unitList } from "./dps_units.ts";
 
 const kv = await Deno.openKv();
 
@@ -20,170 +22,8 @@ type DpsRecord = {
   unit: string;
 };
 
-// 単位リスト (既存のリスト + 単位表の単位をすべて追加)
-const unitList = [
-  // 既存のリスト
-  { exp: 3, symbol: "K" },
-  { exp: 6, symbol: "M" },
-  { exp: 9, symbol: "B" },
-  { exp: 12, symbol: "T" },
-  { exp: 15, symbol: "Qa" },
-  { exp: 18, symbol: "Qi" },
-  { exp: 21, symbol: "Sx" },
-  { exp: 24, symbol: "Sp" },
-  { exp: 27, symbol: "Oc" },
-  { exp: 30, symbol: "No" },
-  { exp: 33, symbol: "De" },
-  { exp: 36, symbol: "Ud" },
-  { exp: 39, symbol: "Dd" },
-  { exp: 42, symbol: "Td" },
-  { exp: 45, symbol: "Qad" },
-  { exp: 48, symbol: "Qid" },
-  { exp: 51, symbol: "Sxd" },
-  { exp: 54, symbol: "Spd" },
-  { exp: 57, symbol: "Ocd" },
-  { exp: 60, symbol: "Nod" },
-  { exp: 63, symbol: "Vg" },
-  { exp: 66, symbol: "Uvg" },
-  { exp: 69, symbol: "Dvg" },
-  { exp: 72, symbol: "Tvg" },
-  { exp: 75, symbol: "Qavg" },
-  // 単位表の追加分 (exp 93以降は、既存リストの最後尾(75)から連番で追加)
-  // U-, D-, T- は既存リストと重複するため省略
-  // Qa- (Qad, Qidは既存)
-  { exp: 78, symbol: "Qivig" }, // Qivg
-  { exp: 81, symbol: "Sxg" },
-  { exp: 84, symbol: "Spg" },
-  { exp: 87, symbol: "Ocg" },
-  { exp: 90, symbol: "Nog" },
-  
-  // 1e33 - 1e75 は既存リストに含まれるため、 exp93 から開始 (画像に合わせて調整)
-  
-  // d (1e33) -> d (1e33)
-  { exp: 33, symbol: "Ud" },
-  { exp: 36, symbol: "Dd" },
-  { exp: 39, symbol: "Td" },
-  { exp: 42, symbol: "Qad" },
-  { exp: 45, symbol: "Qid" },
-  { exp: 48, symbol: "Sxd" },
-  { exp: 51, symbol: "Spd" },
-  { exp: 54, symbol: "Ocd" },
-  { exp: 57, symbol: "Nod" },
-  { exp: 60, symbol: "Vg" },
-
-  // vg (1e63) -> vg (1e63)
-  { exp: 63, symbol: "Uvg" },
-  { exp: 66, symbol: "Dvg" },
-  { exp: 69, symbol: "Tvg" },
-  { exp: 72, symbol: "Qavg" },
-  { exp: 75, symbol: "Qivg" }, // Qi- (1e78)
-  { exp: 78, symbol: "Sxg" },
-  { exp: 81, symbol: "Spg" },
-  { exp: 84, symbol: "Ocg" },
-  { exp: 87, symbol: "Nog" },
-
-  // tg (1e93)
-  { exp: 93, symbol: "Utg" },
-  { exp: 96, symbol: "Dtg" },
-  { exp: 99, symbol: "Ttg" },
-  { exp: 102, symbol: "Qatg" },
-  { exp: 105, symbol: "Qitg" },
-  { exp: 108, symbol: "Sxtg" },
-  { exp: 111, symbol: "Sptg" },
-  { exp: 114, symbol: "Octg" },
-  { exp: 117, symbol: "Notg" },
-  { exp: 120, symbol: "Qag" },
-  
-  // qag (1e123)
-  { exp: 123, symbol: "Uqag" },
-  { exp: 126, symbol: "Dqag" },
-  { exp: 129, symbol: "Tqag" },
-  { exp: 132, symbol: "Qaqag" },
-  { exp: 135, symbol: "Qiqag" },
-  { exp: 138, symbol: "Sxqag" },
-  { exp: 141, symbol: "Spqag" },
-  { exp: 144, symbol: "Ocqag" },
-  { exp: 147, symbol: "Noqag" },
-  { exp: 150, symbol: "Qig" },
-
-  // qig (1e153)
-  { exp: 153, symbol: "Uqig" },
-  { exp: 156, symbol: "Dqig" },
-  { exp: 159, symbol: "Tqig" },
-  { exp: 162, symbol: "Qaqig" },
-  { exp: 165, symbol: "Qiqig" },
-  { exp: 168, symbol: "Sxqig" },
-  { exp: 171, symbol: "Spqig" },
-  { exp: 174, symbol: "Ocqig" },
-  { exp: 177, symbol: "Noqig" },
-  { exp: 180, symbol: "Sxg" },
-
-  // sxg (1e183)
-  { exp: 183, symbol: "Usxg" },
-  { exp: 186, symbol: "Dsxg" },
-  { exp: 189, symbol: "Tsxg" },
-  { exp: 192, symbol: "Qasxg" },
-  { exp: 195, symbol: "Qisxg" },
-  { exp: 198, symbol: "Sxsxg" },
-  { exp: 201, symbol: "Spsxg" },
-  { exp: 204, symbol: "Ocsxg" },
-  { exp: 207, symbol: "Nosxg" },
-  { exp: 210, symbol: "Spg" },
-
-  // spg (1e213)
-  { exp: 213, symbol: "Uspg" },
-  { exp: 216, symbol: "Dspg" },
-  { exp: 219, symbol: "Tspg" },
-  { exp: 222, symbol: "Qaspg" },
-  { exp: 225, symbol: "Qispg" },
-  { exp: 228, symbol: "Sxslg" },
-  { exp: 231, symbol: "Spspg" },
-  { exp: 234, symbol: "Ocspg" },
-  { exp: 237, symbol: "Nospg" },
-  { exp: 240, symbol: "Ocg" },
-
-  // ocg (1e243)
-  { exp: 243, symbol: "Uocg" },
-  { exp: 246, symbol: "Docg" },
-  { exp: 249, symbol: "Tocg" },
-  { exp: 252, symbol: "Qaocg" },
-  { exp: 255, symbol: "Qiocg" },
-  { exp: 258, symbol: "Sxocg" },
-  { exp: 261, symbol: "Spocg" },
-  { exp: 264, symbol: "Ococg" },
-  { exp: 267, symbol: "Noocg" },
-  { exp: 270, symbol: "Nog" },
-
-  // nog (1e273)
-  { exp: 273, symbol: "Unog" },
-  { exp: 276, symbol: "Dnog" },
-  { exp: 279, symbol: "Tnog" },
-  { exp: 282, symbol: "Qanog" },
-  { exp: 285, symbol: "Qinog" },
-  { exp: 288, symbol: "Sxnogs" },
-  { exp: 291, symbol: "Spnog" },
-  { exp: 294, symbol: "Ocnog" },
-  { exp: 297, symbol: "Nonog" },
-  { exp: 300, symbol: "c" },
-
-  // c (1e303)
-  { exp: 303, symbol: "Uc" },
-  { exp: 306, symbol: "Dc" },
-];
-
-
-function unitToExp(symbol: string): number | null {
-  // 後方互換性のため、シンボルが重複しないように注意し、大文字・小文字を無視して検索
-  const found = unitList.find((u) => u.symbol.toLowerCase() === symbol.toLowerCase());
-  return found ? found.exp : null;
-}
-
-function formatDps(value: number, unit: string): string {
-  return `${value}${unit}`;
-}
-
 // Discordコマンド定義
-// 単位が多すぎるため、Discordの選択肢制限 (25個) に合わせて、expの低いものから25個を選択
+// 単位の選択肢は25個制限のため、expの低いものから25個を選択して登録（手入力も可能）
 const unitChoices = unitList
   .filter((u) => u.symbol.length <= 25)
   .sort((a, b) => a.exp - b.exp) // expの低い順にソート
@@ -199,7 +39,7 @@ const swordRanksChoices = [
 const commands = [
   {
     name: "dps",
-    description: "DPSを登録します。例: /dps 12345 Qi",
+    description: "DPSを登録します。例: /dps 12345 Qi, /dps 1.0 Uc",
     type: 1,
     options: [
       {
@@ -210,10 +50,10 @@ const commands = [
       },
       {
         name: "unit",
-        description: `単位（例: K, M, Qi ...）`,
+        description: `単位（例: K, M, Qi, Uvg, Uc ...）`,
         type: ApplicationCommandOptionTypes.String,
         required: true,
-        choices: unitChoices,
+        // 🚀 選択肢(choices)は削除したまま、手動入力で全単位対応 🚀
       },
     ],
   },
@@ -251,7 +91,7 @@ const commands = [
   },
   {
     name: "remind_on",
-    description: "毎時00,20,40分にメンションする機能を有効にします。実行したチャンネルが対象になります。",
+    description: "毎時18,38,58分に@hereでメンションする機能を有効にします。実行したチャンネルが対象。",
     type: 1,
   },
   {
@@ -392,7 +232,7 @@ const bot = createBot({
         if (exp === null) {
           await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
             type: InteractionResponseTypes.ChannelMessageWithSource,
-            data: { content: `単位「${unit}」は対応していません。`, flags: 64 },
+            data: { content: `単位「${unit}」は対応していません。**K, M, Qi, Uvg, Uc** など、正しい単位名を入力してください。`, flags: 64 },
           });
           return;
         }
@@ -545,7 +385,7 @@ const bot = createBot({
           await kv.set(["guild_remind_channel", guildId.toString()], channelId.toString());
           await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
             type: InteractionResponseTypes.ChannelMessageWithSource,
-            data: { content: "毎時00,20,40分の自動メンションを有効にしました。このチャンネルに送信されます。", flags: 64 },
+            data: { content: "毎時18,38,58分の自動メンションを有効にしました。このチャンネルに @here で送信されます。", flags: 64 },
           });
         }
       }
@@ -556,7 +396,7 @@ const bot = createBot({
           await kv.delete(["guild_remind_channel", guildId.toString()]);
           await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
             type: InteractionResponseTypes.ChannelMessageWithSource,
-            data: { content: "毎時00,20,40分の自動メンションを無効にしました。", flags: 64 },
+            data: { content: "毎時18,38,58分の自動メンションを無効にしました。", flags: 64 },
           });
         }
       }
@@ -571,9 +411,9 @@ Deno.cron("Continuous Request", "*/2 * * * *", () => {
   console.log("running...");
 });
 
-// 新しいメンション用Cronジョブ
-Deno.cron("Remind", "0,20,40 * * * *", async () => {
-  console.log("Remind cron job running...");
+// 🚀 メンション用Cronジョブを「18,38,58分」と「@here」に修正 🚀
+Deno.cron("Remind", "18,38,58 * * * *", async () => {
+  console.log("Remind cron job running at 18, 38, 58 past the hour...");
   
   // KVから通知設定されているチャンネルIDをすべて取得
   const guilds = kv.list({ prefix: ["guild_remind_channel"] });
@@ -583,9 +423,8 @@ Deno.cron("Remind", "0,20,40 * * * *", async () => {
     
     // チャンネルにメッセージを送信
     try {
-        // ⚠️ ここをメンションしたいロールIDに置き換えてください ⚠️
-        await bot.helpers.sendMessage(BigInt(channelId), { content: "<@&1404446958286012446> 残り時間わずかです！" }); 
-        console.log(`Sent remind message to channel ${channelId}`);
+        await bot.helpers.sendMessage(BigInt(channelId), { content: "@here 残り時間わずかです！" }); 
+        console.log(`Sent @here remind message to channel ${channelId}`);
     } catch (error) {
         console.error(`[ERROR] Failed to send message to channel ${channelId}:`, error);
     }
