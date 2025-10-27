@@ -9,7 +9,7 @@ import {
 // 外部ファイルからのインポート
 import { calculateSwords, calculateRemainingSwords } from "./sword_calculator.ts"; 
 import { unitToExp, formatDps, unitList, unitGroups } from "./dps_units.ts";
-import { swordRanks } from "./sword_ranks.ts"; 
+import { swordRanks } from "./sword_ranks.ts"; // 🚀 剣のランク定義を参照 🚀
 
 const kv = await Deno.openKv();
 
@@ -23,7 +23,8 @@ type DpsRecord = {
   unit: string;
 };
 
-// 剣のランク (swordRanks.tsから取得し、コマンド定義用に変換 - choicesの数が上限を超えたため、Bot内部でのみ使用)
+// 剣のランク (Discordの選択肢上限(25個)を超えたため、コマンド登録時には使用しません)
+// ただし、この配列自体は計算ロジックや単位確認で利用するため保持します。
 const swordRanksChoices = swordRanks.map(rank => ({ name: rank, value: rank }));
 
 const commands = [
@@ -66,7 +67,7 @@ const commands = [
         description: "到達したい剣のランク (例: ur+, gr+, m+ など)",
         type: ApplicationCommandOptionTypes.String,
         required: true,
-        // ❌ Discordの選択肢上限25個を超えたため choices を削除 ❌
+        // ❌ choices を削除してコマンド登録エラーを回避 ❌
       },
       {
         name: "owned_swords",
@@ -79,7 +80,7 @@ const commands = [
         description: "不足数を換算したい基準ランク (省略可、デフォルトはE)",
         type: ApplicationCommandOptionTypes.String,
         required: false,
-        // ❌ Discordの選択肢上限25個を超えたため choices を削除 ❌
+        // ❌ choices を削除してコマンド登録エラーを回避 ❌
       },
     ],
   },
@@ -199,7 +200,6 @@ const bot = createBot({
         await bot.helpers.upsertGlobalApplicationCommands(commands);
         console.log("[SUCCESS] 新しいグローバルDPSコマンド登録完了");
       } catch (error) {
-        // 🚀 choices削除により、このエラーは解消されるはずです 🚀
         console.error("[ERROR] コマンドの登録中にエラーが発生しました:", error);
       }
     },
@@ -360,7 +360,7 @@ const bot = createBot({
             if (result === null) {
               await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
                 type: InteractionResponseTypes.ChannelMessageWithSource,
-                data: { content: "無効なランクが指定されました。", flags: 64 },
+                data: { content: "無効なランクが指定されました。ランク名を確認してください。", flags: 64 },
               });
             } else if (result.needed === 0) {
                  await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
@@ -386,7 +386,7 @@ const bot = createBot({
           if (swordsNeeded === null) {
             await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
               type: InteractionResponseTypes.ChannelMessageWithSource,
-              data: { content: "無効なランクが指定されました。", flags: 64 },
+              data: { content: "無効なランクが指定されました。ランク名を確認してください。", flags: 64 },
             });
           } else {
             await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
