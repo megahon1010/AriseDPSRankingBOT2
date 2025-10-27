@@ -1,17 +1,11 @@
 // sword_calculator.ts
 
-// 剣のランクを定義した配列 (GRとGR+を含む)
-const swordRanks = [
-  "e", "d", "c", "b", "a", "s", "ss", "g", "n", "n+",
-  "m", "m+", "gm", "gm+", "ugm", "ugm+", "hgm", "hgm+", "r", "r+", "mr", "mr+", "gr", "gr+", "ur", "ur+" 
-];
+// 🚀 sword_ranks.ts からランク配列をインポート 🚀
+import { swordRanks } from "./sword_ranks.ts"; 
+
 
 /**
  * あるランクの剣を、指定した基準ランクに換算したときの総数を計算します。
- * @param fromRank 換算元のランク
- * @param toRank 換算先のランク
- * @param count 剣の本数
- * @returns 換算先のランクでの総数
  */
 export function convertFromTo(fromRank: string, toRank: string, count: number): number | null {
     const fromIndex = swordRanks.indexOf(fromRank.toLowerCase());
@@ -47,9 +41,6 @@ export function convertFromTo(fromRank: string, toRank: string, count: number): 
 
 /**
  * 目的の剣のランクを達成するために必要な、指定したランクの剣の総数を計算します。
- * @param startRank 開始ランク
- * @param targetRank 目的のランク
- * @returns 必要な剣の総数
  */
 export function calculateSwords(startRank: string, targetRank: string): number | null {
   const startIndex = swordRanks.indexOf(startRank.toLowerCase());
@@ -69,10 +60,6 @@ export function calculateSwords(startRank: string, targetRank: string): number |
 
 /**
  * 目標ランクを達成するために、現在不足している剣の数を計算します。
- * @param targetRank 目標ランク
- * @param ownedSwords 現在持っている剣のリスト（例: [{rank: "g", count: 1}, {rank: "ss", count: 2}])
- * @param baseRank 基準となる換算ランク
- * @returns 不足している剣の数
  */
 export function calculateRemainingSwords(targetRank: string, ownedSwords: { rank: string, count: number }[], baseRank: string): { needed: number } | null {
     const targetIndex = swordRanks.indexOf(targetRank.toLowerCase());
