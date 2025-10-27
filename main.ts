@@ -9,7 +9,7 @@ import {
 // 外部ファイルからのインポート
 import { calculateSwords, calculateRemainingSwords } from "./sword_calculator.ts"; 
 import { unitToExp, formatDps, unitList, unitGroups } from "./dps_units.ts";
-import { swordRanks } from "./sword_ranks.ts"; // 🚀 剣のランク定義を参照 🚀
+import { swordRanks } from "./sword_ranks.ts"; 
 
 const kv = await Deno.openKv();
 
@@ -23,7 +23,7 @@ type DpsRecord = {
   unit: string;
 };
 
-// 剣のランク (swordRanks.tsから取得し、コマンド定義用に変換)
+// 剣のランク (swordRanks.tsから取得し、コマンド定義用に変換 - choicesの数が上限を超えたため、Bot内部でのみ使用)
 const swordRanksChoices = swordRanks.map(rank => ({ name: rank, value: rank }));
 
 const commands = [
@@ -63,11 +63,10 @@ const commands = [
     options: [
       {
         name: "target_rank",
-        description: "到達したい剣のランク",
+        description: "到達したい剣のランク (例: ur+, gr+, m+ など)",
         type: ApplicationCommandOptionTypes.String,
         required: true,
-        // ✅ choicesを復活
-        choices: swordRanksChoices, 
+        // ❌ Discordの選択肢上限25個を超えたため choices を削除 ❌
       },
       {
         name: "owned_swords",
@@ -80,8 +79,7 @@ const commands = [
         description: "不足数を換算したい基準ランク (省略可、デフォルトはE)",
         type: ApplicationCommandOptionTypes.String,
         required: false,
-        // ✅ choicesを復活
-        choices: swordRanksChoices, 
+        // ❌ Discordの選択肢上限25個を超えたため choices を削除 ❌
       },
     ],
   },
@@ -201,6 +199,7 @@ const bot = createBot({
         await bot.helpers.upsertGlobalApplicationCommands(commands);
         console.log("[SUCCESS] 新しいグローバルDPSコマンド登録完了");
       } catch (error) {
+        // 🚀 choices削除により、このエラーは解消されるはずです 🚀
         console.error("[ERROR] コマンドの登録中にエラーが発生しました:", error);
       }
     },
