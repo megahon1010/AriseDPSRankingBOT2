@@ -6,9 +6,10 @@ import {
   InteractionResponseTypes,
   InteractionTypes,
 } from "https://deno.land/x/discordeno@18.0.1/mod.ts";
-import { calculateSwords, calculateRemainingSwords } from "./sword_calculator.ts";
-// 🚀 dps_units.ts からインポートするように変更 🚀
-import { unitToExp, formatDps, unitList } from "./dps_units.ts";
+// 🚀 sword_calculator.ts から剣の計算ロジックをインポート
+import { calculateSwords, calculateRemainingSwords } from "./sword_calculator.ts"; 
+// 🚀 dps_units.ts からDPSの単位ロジックをインポート
+import { unitToExp, formatDps, unitList, unitGroups } from "./dps_units.ts";
 
 const kv = await Deno.openKv();
 
@@ -22,14 +23,6 @@ type DpsRecord = {
   unit: string;
 };
 
-// Discordコマンド定義
-// 単位の選択肢は25個制限のため、expの低いものから25個を選択して登録（手入力も可能）
-const unitChoices = unitList
-  .filter((u) => u.symbol.length <= 25)
-  .sort((a, b) => a.exp - b.exp) // expの低い順にソート
-  .slice(0, 25)
-  .map((u) => ({ name: u.symbol, value: u.symbol }));
-  
 // 剣のランク (GRとGR+を含む)
 const swordRanksChoices = [
     "e", "d", "c", "b", "a", "s", "ss", "g", "n", "n+",
@@ -53,13 +46,18 @@ const commands = [
         description: `単位（例: K, M, Qi, Uvg, Uc ...）`,
         type: ApplicationCommandOptionTypes.String,
         required: true,
-        // 🚀 選択肢(choices)は削除したまま、手動入力で全単位対応 🚀
+        // 🚀 選択肢は最大25個の制限のため削除。手動入力で全単位対応 🚀
       },
     ],
   },
   {
     name: "dpsrank",
     description: "サーバー内DPSランキングを表示します。",
+    type: 1,
+  },
+  {
+    name: "dpsunits",
+    description: "Botが対応している全DPS単位(K〜Dc)をグループ化して表示します。",
     type: 1,
   },
   {
@@ -91,7 +89,8 @@ const commands = [
   },
   {
     name: "remind_on",
-    description: "毎時18,38,58分に@hereでメンションする機能を有効にします。実行したチャンネルが対象。",
+    // ⚠️ 説明文をロールメンションに合わせて変更 ⚠️
+    description: "毎時18,38,58分に指定ロールをメンションする機能を有効にします。実行したチャンネルが対象。",
     type: 1,
   },
   {
@@ -101,7 +100,7 @@ const commands = [
   },
 ];
 
-// Botトークン取得とロールID設定
+// Botトークン取得とロールID設定 (環境変数)
 const BOT_TOKEN = Deno.env.get("DISCORD_TOKEN") ?? "";
 if (!BOT_TOKEN) throw new Error("DISCORD_TOKEN環境変数が設定されていません。");
 
@@ -130,6 +129,7 @@ async function updateRoles(bot: any, guildId: bigint) {
 
   const sortedUsers = dpsRecords
     .sort((a, b) => {
+      // unitToExpはdps_units.tsからインポートされている
       const aExp = unitToExp(a.unit) ?? 0;
       const bExp = unitToExp(b.unit) ?? 0;
       const aAbs = a.value * Math.pow(10, aExp);
@@ -194,10 +194,9 @@ const bot = createBot({
 
       // 既存のコマンドをすべて削除して再登録
       try {
-        // グローバルコマンドをすべて取得して削除
         const existingCommands = await bot.helpers.getGlobalApplicationCommands();
         for (const cmd of existingCommands) {
-            if (cmd.id) { // ここでidの存在をチェック
+            if (cmd.id) { 
                 await bot.helpers.deleteGlobalApplicationCommand(cmd.id);
             }
         }
@@ -210,12 +209,14 @@ const bot = createBot({
         console.error("[ERROR] コマンドの登録中にエラーが発生しました:", error);
       }
     },
+    // 🚀 コマンド処理の中心部 🚀
     interactionCreate: async (bot, interaction) => {
       if (interaction.type !== InteractionTypes.ApplicationCommand || !interaction.guildId) return;
 
       const command = interaction.data?.name;
       console.log(`[INTERACTION] /${command} コマンドを受信しました。`);
 
+      // --------------------- /dps ---------------------
       if (command === "dps") {
         const value = interaction.data?.options?.find((o) => o.name === "value")?.value;
         const unit = interaction.data?.options?.find((o) => o.name === "unit")?.value;
@@ -228,7 +229,7 @@ const bot = createBot({
           return;
         }
 
-        const exp = unitToExp(unit);
+        const exp = unitToExp(unit); // dps_units.tsからインポートされた関数
         if (exp === null) {
           await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
             type: InteractionResponseTypes.ChannelMessageWithSource,
@@ -262,6 +263,7 @@ const bot = createBot({
         return;
       }
 
+      // --------------------- /dpsrank ---------------------
       if (command === "dpsrank") {
         const guildId = BigInt(interaction.guildId);
         
@@ -317,6 +319,46 @@ const bot = createBot({
         return;
       }
 
+      // --------------------- /dpsunits ---------------------
+      if (command === "dpsunits") {
+        
+        // 単位グループを埋め込みフィールドとして整形 (unitGroupsはdps_units.tsからインポート)
+        const fields = unitGroups.map(group => {
+          const unitString = group.units.map(u => 
+            // 指数を読みやすく
+            `${u.symbol}: e+${u.exp}`
+          ).join('\n');
+
+          return {
+            name: `🌐 ${group.name}`,
+            value: `\`\`\`\n${unitString}\n\`\`\``,
+            inline: true, // 横並びにする
+          };
+        });
+
+        // 埋め込みメッセージを作成
+        const embed = {
+          color: 0x3498db, // 青色
+          title: "⚔️ 対応DPS単位リスト (指数表記)",
+          description: "Botが認識するDPS単位とその指数です。\nコマンド入力時は **シンボル** のみを使用してください。",
+          fields: fields,
+          footer: {
+            text: "例: 12345 Qi, 1.0 Uc",
+          },
+        };
+
+        await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
+          type: InteractionResponseTypes.ChannelMessageWithSource,
+          data: {
+            embeds: [embed],
+            flags: 64, // 公開メッセージとして応答
+          },
+        });
+        console.log("[SUCCESS] DPS単位リスト表示完了");
+        return;
+      }
+      
+      // --------------------- /sword ---------------------
       if (command === "sword") {
         const targetRank = interaction.data?.options?.find((o) => o.name === "target_rank")?.value as string;
         const ownedSwordsStr = interaction.data?.options?.find((o) => o.name === "owned_swords")?.value as string;
@@ -333,7 +375,7 @@ const bot = createBot({
                 return { rank: parts[0], count: parseInt(parts[1], 10) };
             });
 
-            const result = calculateRemainingSwords(targetRank, ownedSwords, baseRank);
+            const result = calculateRemainingSwords(targetRank, ownedSwords, baseRank); // sword_calculator.tsからインポート
 
             if (result === null) {
               await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
@@ -361,7 +403,7 @@ const bot = createBot({
           }
         } else {
           // 所持剣が指定されていない場合は、以前のロジックを使用
-          const swordsNeeded = calculateSwords(baseRank, targetRank);
+          const swordsNeeded = calculateSwords(baseRank, targetRank); // sword_calculator.tsからインポート
           if (swordsNeeded === null) {
             await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
               type: InteractionResponseTypes.ChannelMessageWithSource,
@@ -376,7 +418,7 @@ const bot = createBot({
         }
       }
 
-      // メンション機能のコマンドロジック
+      // --------------------- /remind_on ---------------------
       if (command === "remind_on") {
         const guildId = interaction.guildId;
         const channelId = interaction.channelId;
@@ -385,11 +427,12 @@ const bot = createBot({
           await kv.set(["guild_remind_channel", guildId.toString()], channelId.toString());
           await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
             type: InteractionResponseTypes.ChannelMessageWithSource,
-            data: { content: "毎時18,38,58分の自動メンションを有効にしました。このチャンネルに @here で送信されます。", flags: 64 },
+            data: { content: "毎時18,38,58分の自動メンションを有効にしました。このチャンネルに指定ロールへメンションされます。", flags: 64 },
           });
         }
       }
 
+      // --------------------- /remind_off ---------------------
       if (command === "remind_off") {
         const guildId = interaction.guildId;
         if (guildId) {
@@ -406,26 +449,28 @@ const bot = createBot({
 
 await startBot(bot);
 
-// 連続リクエストを維持するためのCronジョブ（既存）
+// 連続リクエストを維持するためのCronジョブ（Deno Deployの仕様）
 Deno.cron("Continuous Request", "*/2 * * * *", () => {
   console.log("running...");
 });
 
-// 🚀 メンション用Cronジョブを「18,38,58分」と「@here」に修正 🚀
+// 🚀 自動メンション用Cronジョブ 🚀
+// スケジュール: 毎時18分, 38分, 58分
 Deno.cron("Remind", "18,38,58 * * * *", async () => {
   console.log("Remind cron job running at 18, 38, 58 past the hour...");
   
   // KVから通知設定されているチャンネルIDをすべて取得
   const guilds = kv.list({ prefix: ["guild_remind_channel"] });
   
+  // ⚠️ メンションするロールID ⚠️
+  const roleMention = "<@&1426509530640158730>"; 
+  
   for await (const entry of guilds) {
     const channelId = entry.value as string;
     
     // チャンネルにメッセージを送信
     try {
-        // ⚠️ 指定されたロールIDにメンションするように修正 ⚠️
-        const roleMention = "<@&1426509530640158730>"; 
-        await bot.helpers.sendMessage(BigInt(channelId), { content: `${roleMention} The World Boss will appear in 2 min ワールドボスが二分後に出現します！` }); 
+        await bot.helpers.sendMessage(BigInt(channelId), { content: `${roleMention} 残り時間わずかです！` }); 
         console.log(`Sent role remind message to channel ${channelId}`);
     } catch (error) {
         console.error(`[ERROR] Failed to send message to channel ${channelId}:`, error);
