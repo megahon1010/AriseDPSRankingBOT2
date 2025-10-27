@@ -6,5 +6,6 @@
  */
 export const swordRanks = [
   "e", "d", "c", "b", "a", "s", "ss", "g", "n", "n+",
-  "m", "m+", "gm", "gm+", "ugm", "ugm+", "hgm", "hgm+", "r", "r+", "mr", "mr+", "gr", "gr+", "ur", "ur+" // UR, UR+を含む
+  "m", "m+", "gm", "gm+", "ugm", "ugm+", "hgm", "hgm+", "r", "r+", "mr", "mr+", "gr", "gr+",
+  "ur", "ur+" // 🚀 新しいランク UR と UR+ 🚀
 ];
