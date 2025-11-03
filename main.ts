@@ -225,7 +225,7 @@ Deno.cron("Remind", "18,38,58 * * * *", async () => {
   const guilds = kv.list({ prefix: ["guild_remind_channel"] });
   
   // メンションするロールID - ※注意: ここを新しいサーバーのロールIDに更新してください！
-  const roleMention = "<@&1426509530640158730>"; 
+  const roleMention = "<@&1434820667764899910>"; 
   
   for await (const entry of guilds) {
     const channelId = entry.value as string;
