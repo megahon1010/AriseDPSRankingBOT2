@@ -8,50 +8,12 @@ import {
 } from "https://deno.land/x/discordeno@18.0.1/mod.ts";
 // 外部ファイルからのインポート
 import { calculateSwords, calculateRemainingSwords } from "./sword_calculator.ts"; 
-import { unitToExp, formatDps, unitList, unitGroups } from "./dps_units.ts";
-import { swordRanks } from "./sword_ranks.ts"; // 🚀 剣のランク定義を参照 🚀
+import { unitGroups } from "./dps_units.ts"; // DPS単位の表示に必要
+import { swordRanks } from "./sword_ranks.ts"; 
 
 const kv = await Deno.openKv();
 
-// DPSランキングBotの主要機能 ------------------------------------------------------------
-
-// DPSデータ保存用のインターフェース
-type DpsRecord = {
-  userId: bigint;
-  guildId: bigint;
-  value: number;
-  unit: string;
-};
-
-// 剣のランク (Discordの選択肢上限(25個)を超えたため、コマンド登録時には使用しません)
-// ただし、この配列自体は計算ロジックや単位確認で利用するため保持します。
-const swordRanksChoices = swordRanks.map(rank => ({ name: rank, value: rank }));
-
 const commands = [
-  {
-    name: "dps",
-    description: "DPSを登録します。例: /dps 12345 Qi, /dps 1.0 Uc",
-    type: 1,
-    options: [
-      {
-        name: "value",
-        description: "あなたのDPS数値（例：12345, 1.2 など）",
-        type: ApplicationCommandOptionTypes.Number,
-        required: true,
-      },
-      {
-        name: "unit",
-        description: `単位（例: K, M, Qi, Uvg, Uc ...）`,
-        type: ApplicationCommandOptionTypes.String,
-        required: true,
-      },
-    ],
-  },
-  {
-    name: "dpsrank",
-    description: "サーバー内DPSランキングを表示します。",
-    type: 1,
-  },
   {
     name: "dpsunits",
     description: "Botが対応している全DPS単位(K〜Dc)をグループ化して表示します。",
@@ -67,7 +29,6 @@ const commands = [
         description: "到達したい剣のランク (例: ur+, gr+, m+ など)",
         type: ApplicationCommandOptionTypes.String,
         required: true,
-        // ❌ choices を削除してコマンド登録エラーを回避 ❌
       },
       {
         name: "owned_swords",
@@ -80,7 +41,6 @@ const commands = [
         description: "不足数を換算したい基準ランク (省略可、デフォルトはE)",
         type: ApplicationCommandOptionTypes.String,
         required: false,
-        // ❌ choices を削除してコマンド登録エラーを回避 ❌
       },
     ],
   },
@@ -96,87 +56,10 @@ const commands = [
   },
 ];
 
-// Botトークン取得とロールID設定 (環境変数)
+// Botトークン取得 (環境変数)
 const BOT_TOKEN = Deno.env.get("DISCORD_TOKEN") ?? "";
 if (!BOT_TOKEN) throw new Error("DISCORD_TOKEN環境変数が設定されていません。");
 
-const ROLE_ID_TOP1 = Deno.env.get("ROLE_ID_TOP1") ?? "";
-const ROLE_ID_TOP2 = Deno.env.get("ROLE_ID_TOP2") ?? "";
-const ROLE_ID_TOP3 = Deno.env.get("ROLE_ID_TOP3") ?? "";
-const ROLE_ID_TOP10 = Deno.env.get("ROLE_ID_TOP10") ?? "";
-
-// KVからデータを取得してロールを更新する関数
-async function updateRoles(bot: any, guildId: bigint) {
-  console.log(`[ROLE_UPDATE] Starting role update for guild ${guildId}`);
-
-  const dpsRecords: DpsRecord[] = [];
-  try {
-    const iter = kv.list({ prefix: ["dps_record"] });
-    for await (const entry of iter) {
-      if ((entry.value as DpsRecord).guildId === guildId) {
-        dpsRecords.push(entry.value as DpsRecord);
-      }
-    }
-  } catch (error) {
-    console.error("[ERROR] ロール更新時のKV読み込みエラー:", error);
-    return;
-  }
-
-  const sortedUsers = dpsRecords
-    .sort((a, b) => {
-      const aExp = unitToExp(a.unit) ?? 0;
-      const bExp = unitToExp(b.unit) ?? 0;
-      const aAbs = a.value * Math.pow(10, aExp);
-      const bAbs = b.value * Math.pow(10, bExp);
-      return bAbs - aAbs;
-    });
-
-  const roleMap = {
-    1: ROLE_ID_TOP1,
-    2: ROLE_ID_TOP2,
-    3: ROLE_ID_TOP3,
-    10: ROLE_ID_TOP10,
-  };
-
-  const guild = await bot.helpers.getGuild(guildId);
-  if (!guild) {
-    console.error(`[ERROR] Guild not found: ${guildId}`);
-    return;
-  }
-
-  const currentMembers = await bot.helpers.getMembers(guildId);
-
-  // 全メンバーからランキングロールを削除
-  for (const [memberId, member] of currentMembers) {
-    for (const roleId of Object.values(roleMap)) {
-      try {
-        if (roleId && member.roles.includes(BigInt(roleId))) {
-          console.log(`[ROLE_UPDATE] Removing role ${roleId} from member ${memberId}`);
-          await bot.helpers.removeRole(guildId, BigInt(memberId), BigInt(roleId));
-        }
-      } catch (error) {
-        console.error(`[ERROR] ロール削除エラー (ユーザーID: ${memberId}):`, error);
-      }
-    }
-  }
-
-  // トップユーザーにロールを付与
-  for (let i = 0; i < sortedUsers.length; i++) {
-    const rank = i + 1;
-    const { userId } = sortedUsers[i];
-    const roleIdStr = roleMap[rank as keyof typeof roleMap];
-    if (roleIdStr) {
-      try {
-        const roleId = BigInt(roleIdStr);
-        console.log(`[ROLE_UPDATE] Adding role ${roleId} to member ${userId} (Rank: ${rank})`);
-        await bot.helpers.addRole(guildId, BigInt(userId), roleId);
-      } catch (error) {
-        console.error(`[ERROR] ロール付与エラー (ランク: ${rank}, ユーザーID: ${userId}):`, error);
-      }
-    }
-  }
-  console.log("[ROLE_UPDATE] Role update complete.");
-}
 
 // Bot本体 -----------------------------------------------------------------------
 const bot = createBot({
@@ -184,9 +67,9 @@ const bot = createBot({
   intents: Intents.Guilds | Intents.GuildMessages,
   events: {
     ready: async (bot) => {
-      console.log(`[READY] DPSランキングBotが起動しました。ログインID: ${bot.id}`);
+      console.log(`[READY] Botが起動しました。ログインID: ${bot.id}`);
 
-      // 既存のコマンドをすべて削除して再登録
+      // コマンドを再登録
       try {
         const existingCommands = await bot.helpers.getGlobalApplicationCommands();
         for (const cmd of existingCommands) {
@@ -194,11 +77,8 @@ const bot = createBot({
                 await bot.helpers.deleteGlobalApplicationCommand(cmd.id);
             }
         }
-        console.log("[SUCCESS] 既存のグローバルコマンドをすべて削除しました。");
-
-        // 新しいコマンドを登録
         await bot.helpers.upsertGlobalApplicationCommands(commands);
-        console.log("[SUCCESS] 新しいグローバルDPSコマンド登録完了");
+        console.log("[SUCCESS] 新しいグローバルコマンド登録完了");
       } catch (error) {
         console.error("[ERROR] コマンドの登録中にエラーが発生しました:", error);
       }
@@ -210,101 +90,6 @@ const bot = createBot({
 
       const command = interaction.data?.name;
       console.log(`[INTERACTION] /${command} コマンドを受信しました。`);
-
-      // --------------------- /dps ---------------------
-      if (command === "dps") {
-        const value = interaction.data?.options?.find((o) => o.name === "value")?.value;
-        const unit = interaction.data?.options?.find((o) => o.name === "unit")?.value;
-
-        if (typeof value !== "number" || typeof unit !== "string" || !interaction.user?.id) {
-          await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
-            type: InteractionResponseTypes.ChannelMessageWithSource,
-            data: { content: "DPS値または単位が不正です。", flags: 64 },
-          });
-          return;
-        }
-
-        const exp = unitToExp(unit); 
-        if (exp === null) {
-          await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
-            type: InteractionResponseTypes.ChannelMessageWithSource,
-            data: { content: `単位「${unit}」は対応していません。**K, M, Qi, Uvg, Uc** など、正しい単位名を入力してください。`, flags: 64 },
-          });
-          return;
-        }
-
-        const userId = BigInt(interaction.user.id);
-        const guildId = BigInt(interaction.guildId);
-        
-        const dpsRecord: DpsRecord = { userId, guildId, value, unit };
-        await kv.set(["dps_record", userId.toString()], dpsRecord);
-
-        updateRoles(bot, guildId).catch((error) => {
-          console.error("[ERROR] Role update failed in background:", error);
-        });
-
-        await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
-          type: InteractionResponseTypes.ChannelMessageWithSource,
-          data: { content: `DPS(${formatDps(value, unit)})を登録しました！\nランキングとロールは数秒後に更新されます。`, flags: 64 },
-        });
-        console.log(`[SUCCESS] DPS登録完了: ${formatDps(value, unit)}`);
-        return;
-      }
-
-      // --------------------- /dpsrank ---------------------
-      if (command === "dpsrank") {
-        const guildId = BigInt(interaction.guildId);
-        
-        const dpsRecords: DpsRecord[] = [];
-        try {
-          const iter = kv.list({ prefix: ["dps_record"] });
-          for await (const entry of iter) {
-            if ((entry.value as DpsRecord).guildId === guildId) {
-              dpsRecords.push(entry.value as DpsRecord);
-            }
-          }
-        } catch (error) {
-          console.error("[ERROR] KVデータの読み込みエラー:", error);
-          await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
-            type: InteractionResponseTypes.ChannelMessageWithSource,
-            data: { content: '🤔 ランキングデータの読み込み中にエラーが発生しました。' },
-          });
-          return;
-        }
-
-        const ranking = dpsRecords
-          .sort((a, b) => {
-            const aExp = unitToExp(a.unit) ?? 0;
-            const bExp = unitToExp(b.unit) ?? 0;
-            const aAbs = a.value * Math.pow(10, aExp);
-            const bAbs = b.value * Math.pow(10, bExp);
-            return bAbs - aAbs;
-          })
-          .slice(0, 10);
-
-        if (ranking.length === 0) {
-          await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
-            type: InteractionResponseTypes.ChannelMessageWithSource,
-            data: { content: "まだDPS記録がありません。", flags: 64 },
-          });
-          return;
-        }
-
-        const entries = await Promise.all(
-          ranking.map(async (rec, idx) => {
-            const member = await bot.helpers.getMember(guildId, rec.userId).catch(() => null);
-            const username = member?.user?.username ?? "Unknown";
-            return `${idx + 1}位: ${username} - ${formatDps(rec.value, rec.unit)}`;
-          })
-        );
-
-        await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
-          type: InteractionResponseTypes.ChannelMessageWithSource,
-          data: { content: `DPSランキング（単位降順）\n${entries.join("\n")}` },
-        });
-        console.log("[SUCCESS] DPSランキング表示完了");
-        return;
-      }
 
       // --------------------- /dpsunits ---------------------
       if (command === "dpsunits") {
@@ -386,7 +171,7 @@ const bot = createBot({
           if (swordsNeeded === null) {
             await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
               type: InteractionResponseTypes.ChannelMessageWithSource,
-              data: { content: "無効なランクが指定されました。ランク名を確認してください。", flags: 64 },
+              data: { content: "無効なランクが指定されました。", flags: 64 },
             });
           } else {
             await bot.helpers.sendInteractionResponse(interaction.id, interaction.token, {
@@ -439,7 +224,7 @@ Deno.cron("Remind", "18,38,58 * * * *", async () => {
   
   const guilds = kv.list({ prefix: ["guild_remind_channel"] });
   
-  // メンションするロールID
+  // メンションするロールID - ※注意: ここを新しいサーバーのロールIDに更新してください！
   const roleMention = "<@&1426509530640158730>"; 
   
   for await (const entry of guilds) {
