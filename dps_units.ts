@@ -12,11 +12,10 @@ export const unitGroups = [
     { exp: 45, symbol: "Qid" }, { exp: 48, symbol: "Sxd" }, { exp: 51, symbol: "Spd" }, { exp: 54, symbol: "Ocd" },
     { exp: 57, symbol: "Nod" }, { exp: 60, symbol: "Vg" }, 
   ]},
-  // 🚀 VGグループを画像に完全に一致させる 🚀
+  // VGグループ (画像に忠実な指数)
   { name: "vgグループ (Uvg - Nog)", units: [
     { exp: 63, symbol: "Uvg" }, { exp: 66, symbol: "Dvg" }, /* 1e69の単位は画像に無いためスキップ */ { exp: 72, symbol: "Tvg" }, { exp: 75, symbol: "Qavg" },
     { exp: 78, symbol: "Qivg" }, 
-    // ここから画像に示された単位名を使用 (末尾がvgではなくgだが、画像に忠実)
     { exp: 81, symbol: "Sxvg" }, { exp: 84, symbol: "Spvg" }, { exp: 87, symbol: "Ocvg" },
     { exp: 90, symbol: "Novg" }, 
   ]},
@@ -39,7 +38,7 @@ export const unitGroups = [
     { exp: 195, symbol: "Qisxg" }, { exp: 198, symbol: "Sxsxg" }, { exp: 201, symbol: "Spsxg" }, { exp: 204, symbol: "Ocsxg" },
     { exp: 207, symbol: "Nosxg" }, { exp: 210, symbol: "Spg" },
     { exp: 213, symbol: "Uspg" }, { exp: 216, symbol: "Dspg" }, { exp: 219, symbol: "Tspg" }, { exp: 222, symbol: "Qaspg" },
-    { exp: 225, symbol: "Qispg" }, { exp: 228, symbol: "Sxslg" }, // 画像のSxslg(1e228)をSpspgと仮定
+    { exp: 225, symbol: "Qispg" }, { exp: 228, symbol: "Sxslg" }, 
     { exp: 231, symbol: "Spspg" }, { exp: 234, symbol: "Ocspg" },
     { exp: 237, symbol: "Nospg" }, { exp: 240, symbol: "Ocg" },
   ]},
@@ -48,7 +47,7 @@ export const unitGroups = [
     { exp: 255, symbol: "Qiocg" }, { exp: 258, symbol: "Sxocg" }, { exp: 261, symbol: "Spocg" }, { exp: 264, symbol: "Ococg" },
     { exp: 267, symbol: "Noocg" }, { exp: 270, symbol: "Nog" },
     { exp: 273, symbol: "Unog" }, { exp: 276, symbol: "Dnog" }, { exp: 279, symbol: "Tnog" }, { exp: 282, symbol: "Qanog" },
-    { exp: 285, symbol: "Qinog" }, { exp: 288, symbol: "Sxnogs" }, // 画像のSxnogs(1e288)
+    { exp: 285, symbol: "Qinog" }, { exp: 288, symbol: "Sxnogs" }, 
     { exp: 291, symbol: "Spnog" }, { exp: 294, symbol: "Ocnog" },
     { exp: 297, symbol: "Nonog" }, { exp: 300, symbol: "c" },
   ]},
@@ -57,20 +56,18 @@ export const unitGroups = [
   ]},
 ];
 
-// 互換性のため、unitListを平坦化してエクスポート
+// /dpsunits の表示に unitGroups を利用
 export const unitList = unitGroups.flatMap(group => group.units);
 
 /**
- * 単位シンボルを指数に変換します。
+ * DPS登録機能がないため、この関数は/dpsunitsでは使用されませんが、
+ * DPS登録機能が必要になった場合に備えて残しておきます。
  */
 export function unitToExp(symbol: string): number | null {
   const found = unitList.find((u) => u.symbol.toLowerCase() === symbol.toLowerCase());
   return found ? found.exp : null;
 }
 
-/**
- * DPSの値を単位付きで整形します。
- */
 export function formatDps(value: number, unit: string): string {
   return `${value}${unit}`;
 }
